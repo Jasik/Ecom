@@ -18,7 +18,6 @@ struct ProductDetailView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Карусель фотографий (Используем TabView)
                 TabView {
                     ForEach(vm.product.images, id: \.self) { imageUrl in
                         AsyncImage(url: URL(string: imageUrl)) { phase in
@@ -33,19 +32,17 @@ struct ProductDetailView: View {
                 .background(Color.gray.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 
-                // Информация о товаре
                 VStack(alignment: .leading, spacing: 12) {
                     Text(verbatim: vm.product.title).font(.title).bold()
-                    Text(verbatim: "$\(vm.product.price)").font(.title2).foregroundStyle(.blue)
+                    Text(verbatim: vm.product.formattedPrice).font(.title2).foregroundStyle(.blue)
                     Text(verbatim: vm.product.description).font(.body)
                 }
                 .padding(.horizontal)
                 
-                // Кнопка добавления в корзину
                 Button(action: { vm.addToCart() }) {
                     HStack {
                         Image(systemName: vm.isAddedToCart ? "checkmark" : "cart.badge.plus")
-                        Text(vm.isAddedToCart ? "Добавлено" : "не добавлено")
+                        Text(vm.isAddedToCart ? "Добавлено" : "Добавить")
                     }
                     .font(.headline)
                     .frame(maxWidth: .infinity)

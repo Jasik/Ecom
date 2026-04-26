@@ -9,5 +9,7 @@ import Foundation
 
 protocol CartRepository: Sendable {
     func addToCart(product: Product) async
+    func removeFromCart(productID: Int) async
     func observeCartCount() async -> AsyncStream<Int>
+    func observeCartItems() async -> AsyncStream<[Product]>
 }

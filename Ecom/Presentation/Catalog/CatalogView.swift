@@ -17,37 +17,37 @@ struct CatalogView: View {
             ProductRowView(product: product)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    router.push(.productDetail(product: product)) // Переход без NavigationLink
+                    router.push(.productDetail(product: product))
                 }
         }
         .listStyle(.plain)
         .navigationTitle("Catalog")
-        // Строка поиска (нативная)
         .searchable(text: $vm.searchQuery, prompt: "search")
         .onSubmit(of: .search) { Task { await vm.preformSearch() } }
         .onChange(of: vm.searchQuery) { _, newValue in
             if newValue.isEmpty { Task { await vm.load() } }
         }
-        // Корзина в Toolbar
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "cart")
-                    if vm.cartCount > 0 {
-                        Text("\(vm.cartCount)")
-                            .font(.caption2).bold()
-                            .foregroundColor(.white)
-                            .padding(4)
-                            .background(Color.red, in: Circle())
-                            .offset(x: 0, y: -3)
+                Button {
+                    router.presentSheet(.cart)
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "cart")
+                        if vm.cartCount > 0 {
+                            Text("\(vm.cartCount)")
+                                .font(.caption2).bold()
+                                .foregroundColor(.white)
+                                .padding(4)
+                                .background(Color.red, in: Circle())
+                                .offset(x: 0, y: -3)
+                        }
                     }
                 }
             }
-        
         }
         .overlay { if vm.isLoading { ProgressView() } }
         .task {
-            // Запускаем параллельно загрузку товаров и слушатель бейджика корзины
             async let fetchProducts: () = vm.load()
             async let listenCart: () = vm.observeCart()
             _ = await (fetchProducts, listenCart)
@@ -55,7 +55,6 @@ struct CatalogView: View {
     }
 }
 
-// Переиспользуемая ячейка товара
 @MainActor
 struct ProductRowView: View {
     let product: Product

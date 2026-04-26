@@ -22,6 +22,30 @@ struct EcomApp: App {
                     }
             }
             .environment(router)
+            .sheet(item: $router.sheet) { sheetRoute in
+                switch sheetRoute {
+                case .cart:
+                    NavigationStack(path: Bindable(router).cartPath) {
+                        CartView()
+                            .navigationDestination(for: CartInternalRoute.self) { internalRoute in
+                                switch internalRoute {
+                                case .checkout:
+                                    Text("Экран оплаты")
+                                case .addressSelection:
+                                    Text("Выбор адреса")
+                                }
+                            }
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button(role: .close) {
+                                        router.dismissSheet()
+                                    }
+                                }
+                            }
+                    }
+                    .environment(router)
+                }
+            }
         }
     }
 }

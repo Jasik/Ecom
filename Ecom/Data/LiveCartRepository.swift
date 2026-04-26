@@ -9,29 +9,38 @@ import Foundation
 
 actor LiveCartRepository: CartRepository {
     private var cartItems: [Product] = []
-    private var streamContinuation: AsyncStream<Int>.Continuation?
     
+    private var itemsContinuation: AsyncStream<[Product]>.Continuation?
+    private var countContinuation: AsyncStream<Int>.Continuation?
     
     func addToCart(product: Product) async {
         cartItems.append(product)
-        streamContinuation?.yield(cartItems.count)
+        notify()
+    }
+    
+    func removeFromCart(productID: Int) async {
+        cartItems.removeAll { $0.id == productID }
+        notify()
+    }
+    
+    func observeCartItems() async -> AsyncStream<[Product]> {
+        let (stream, continuation) = AsyncStream<[Product]>.makeStream()
+        self.itemsContinuation = continuation
+        continuation.yield(cartItems)
+        return stream
     }
     
     func observeCartCount() async -> AsyncStream<Int> {
         let (stream, continuation) = AsyncStream<Int>.makeStream()
-        
-        self.streamContinuation = continuation
-        
+        self.countContinuation = continuation
         continuation.yield(cartItems.count)
-        
-        continuation.onTermination = { [weak self] _ in
-            Task { await self?.clearContinuation() }
-        }
-        
         return stream
     }
     
-    private func clearContinuation() { self.streamContinuation = nil }
+    private func notify() {
+        itemsContinuation?.yield(cartItems)
+        countContinuation?.yield(cartItems.count)
+    }
 }
 
 private struct CartRepoKey: DependencyKey { static let liveValue: any CartRepository = LiveCartRepository() }
