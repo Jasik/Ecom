@@ -27,6 +27,11 @@ actor LiveCartRepository: CartRepository {
         let (stream, continuation) = AsyncStream<[Product]>.makeStream()
         self.itemsContinuation = continuation
         continuation.yield(cartItems)
+        continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.clearItemsContinuation()
+            }
+        }
         return stream
     }
     
@@ -34,6 +39,13 @@ actor LiveCartRepository: CartRepository {
         let (stream, continuation) = AsyncStream<Int>.makeStream()
         self.countContinuation = continuation
         continuation.yield(cartItems.count)
+        
+        continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.clearCountContinuation()
+            }
+        }
+        
         return stream
     }
     
@@ -41,6 +53,9 @@ actor LiveCartRepository: CartRepository {
         itemsContinuation?.yield(cartItems)
         countContinuation?.yield(cartItems.count)
     }
+    
+    private func clearItemsContinuation() { self.itemsContinuation = nil }
+    private func clearCountContinuation() { self.countContinuation = nil }
 }
 
 private struct CartRepoKey: DependencyKey { static let liveValue: any CartRepository = LiveCartRepository() }

@@ -10,7 +10,11 @@ import SwiftUI
 @MainActor
 struct CatalogView: View {
     @Environment(ShopRouter.self) private var router
-    @State private var vm = CatalogViewModel()
+    @State private var vm: CatalogViewModel
+    
+    init() {
+        _vm = State(wrappedValue: CatalogViewModel())
+    }
     
     var body: some View {
         List(vm.products) { product in

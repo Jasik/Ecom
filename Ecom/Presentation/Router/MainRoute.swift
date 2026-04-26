@@ -50,7 +50,7 @@ final class ShopRouter {
     
     func popCart() {
         if !cartPath.isEmpty {
-            path.removeLast()
+            cartPath.removeLast()
         }
     }
     
