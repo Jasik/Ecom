@@ -14,8 +14,12 @@ protocol DependencyKey: Sendable {
 
 struct DependencyValues: Sendable {
     @TaskLocal static var current = DependencyValues()
+    private var storage: [ObjectIdentifier: Any] = [:]
     init() {}
-    subscript<K: DependencyKey>(key: K.Type) -> K.Value { K.liveValue }
+    subscript<K: DependencyKey>(key: K.Type) -> K.Value {
+        get { storage[ObjectIdentifier(key)] as? K.Value ?? K.liveValue }
+        set { storage[ObjectIdentifier(key)] = newValue }
+    }
 }
 
 @propertyWrapper
