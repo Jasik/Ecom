@@ -25,5 +25,8 @@ struct LiveProductRepository: ProductRepository {
 private struct ProductRepoKey: DependencyKey { static let liveValue: any ProductRepository = LiveProductRepository() }
 
 extension DependencyValues {
-    var productRepo: any ProductRepository { self[ProductRepoKey.self] }
+    var productRepo: any ProductRepository {
+        get { self[ProductRepoKey.self] }
+        set { self[ProductRepoKey.self] = newValue }
+    }
 }

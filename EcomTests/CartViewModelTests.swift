@@ -37,4 +37,28 @@ final class CartViewModelTests: XCTestCase {
             task.cancel()
         }
     }
+    
+    func testTotalPriceCalculation() async throws {
+        let mockRepo = MockCartRepository()
+        let product1 = Product(id: 1, title: "Item 1", description: "", price: 10.50, images: [], thumbnail: "")
+        let product2 = Product(id: 2, title: "Item 2", description: "", price: 20.00, images: [], thumbnail: "")
+        
+        await mockRepo.addToCart(product: product1)
+        await mockRepo.addToCart(product: product2)
+        
+        var testDependencies = DependencyValues()
+        testDependencies.cartRepo = mockRepo
+        
+        await DependencyValues.$current.withValue(testDependencies) {
+            let vm = CartViewModel()
+            let task = Task { await vm.startObserving() }
+            
+            try? await Task.sleep(for: .milliseconds(10))
+            
+            XCTAssertEqual(vm.items.count, 2)
+            XCTAssertEqual(vm.totalPrice, "$30.50")
+            
+            task.cancel()
+        }
+    }
 }
