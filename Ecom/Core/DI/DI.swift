@@ -25,7 +25,10 @@ extension DependencyKey {
 struct DependencyValues: Sendable {
     @TaskLocal static var current = DependencyValues()
     private var storage: [ObjectIdentifier: Any] = [:]
+    
+    #if DEBUG
     private let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    #endif
     
     subscript<K: DependencyKey>(key: K.Type) -> K.Value {
         get {
@@ -46,10 +49,10 @@ struct DependencyValues: Sendable {
 
 @propertyWrapper
 struct Injected<T: Sendable>: Sendable {
-    private let keyPath: KeyPath<DependencyValues, T>
+    private let resolvedValue: T
+    
     init(_ keyPath: KeyPath<DependencyValues, T>) {
-        self.keyPath = keyPath
+        self.resolvedValue = DependencyValues.current[keyPath: keyPath]
     }
-    var wrappedValue: T { DependencyValues.current[keyPath: keyPath] }
+    var wrappedValue: T { resolvedValue }
 }
-

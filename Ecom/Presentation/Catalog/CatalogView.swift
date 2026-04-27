@@ -60,10 +60,13 @@ struct CatalogView: View {
 }
 
 #Preview("Catalog") {
-    NavigationStack {
-        CatalogView()
+    PreviewWithDependencies { _ in
+    } content: {
+        NavigationStack {
+            CatalogView()
+        }
+        .environment(ShopRouter())
     }
-    .environment(ShopRouter())
 }
 
 @MainActor

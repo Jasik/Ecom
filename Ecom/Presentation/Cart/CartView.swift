@@ -71,8 +71,23 @@ struct CartView: View {
 }
 
 #Preview("Cart") {
-    NavigationStack {
-        CartView()
+    PreviewWithDependencies { _ in
+        
+    } content: {
+        NavigationStack {
+            CartView()
+        }
+        .environment(ShopRouter())
     }
-    .environment(ShopRouter())
+}
+
+#Preview("Empty cart") {
+    PreviewWithDependencies { deps in
+        deps.cartRepo = MockEmptyCartRepository()
+    } content: {
+        NavigationStack {
+            CartView()
+        }
+        .environment(ShopRouter())
+    }
 }
