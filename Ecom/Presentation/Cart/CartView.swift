@@ -51,7 +51,7 @@ struct CartView: View {
                     .padding(.horizontal)
                     
                     Button {
-                        router.pushCart(.checkout) // Переход к оплате
+                        router.pushCart(.checkout)
                     } label: {
                         Text("Оформить заказ")
                             .font(.headline).frame(maxWidth: .infinity)
@@ -68,4 +68,11 @@ struct CartView: View {
             await vm.startObserving()
         }
     }
+}
+
+#Preview("Cart") {
+    NavigationStack {
+        CartView()
+    }
+    .environment(ShopRouter())
 }

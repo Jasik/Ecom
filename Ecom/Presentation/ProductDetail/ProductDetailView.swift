@@ -59,3 +59,10 @@ struct ProductDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#Preview("Product Detail") {
+    NavigationStack {
+        ProductDetailView(product: .mock)
+    }
+    .environment(ShopRouter())
+}

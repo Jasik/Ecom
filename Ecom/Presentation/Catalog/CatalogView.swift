@@ -59,6 +59,13 @@ struct CatalogView: View {
     }
 }
 
+#Preview("Catalog") {
+    NavigationStack {
+        CatalogView()
+    }
+    .environment(ShopRouter())
+}
+
 @MainActor
 struct ProductRowView: View {
     let product: Product

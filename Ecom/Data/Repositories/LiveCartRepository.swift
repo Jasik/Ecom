@@ -58,7 +58,51 @@ actor LiveCartRepository: CartRepository {
     private func clearCountContinuation() { self.countContinuation = nil }
 }
 
-private struct CartRepoKey: DependencyKey { static let liveValue: any CartRepository = LiveCartRepository() }
+#if DEBUG
+actor PreviewCartRepository: CartRepository {
+    private let items: [Product] = [.mock, .mock]
+    
+    func addToCart(product: Product) async {}
+    func removeFromCart(productID: Int) async {}
+    func observeCartCount() async -> AsyncStream<Int> {
+        AsyncStream {
+            $0.yield(items.count)
+            $0.finish()
+        }
+    }
+    func observeCartItems() async -> AsyncStream<[Product]> {
+        AsyncStream {
+            $0.yield(items)
+            $0.finish()
+        }
+    }
+}
+
+actor MockEmptyCartRepository: CartRepository {
+    func addToCart(product: Product) async {}
+    func removeFromCart(productID: Int) async {}
+    
+    func observeCartCount() async -> AsyncStream<Int> {
+        AsyncStream {
+            $0.yield(0)
+            $0.finish()
+        }
+    }
+    
+    func observeCartItems() async -> AsyncStream<[Product]> {
+        AsyncStream {
+            $0.yield([])
+            $0.finish()
+        }
+    }
+}
+#endif
+private struct CartRepoKey: DependencyKey {
+    static let liveValue: any CartRepository = LiveCartRepository()
+    #if DEBUG
+    static let previewValue: any CartRepository = PreviewCartRepository()
+    #endif
+}
 extension DependencyValues {
     var cartRepo: any CartRepository {
         get { self[CartRepoKey.self] }

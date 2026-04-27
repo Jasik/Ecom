@@ -10,14 +10,36 @@ import Foundation
 protocol DependencyKey: Sendable {
     associatedtype Value: Sendable
     static var liveValue: Value { get }
+    
+    #if DEBUG
+    static var previewValue: Value { get }
+    #endif
 }
+
+#if DEBUG
+extension DependencyKey {
+    static var previewValue: Value { liveValue }
+}
+#endif
 
 struct DependencyValues: Sendable {
     @TaskLocal static var current = DependencyValues()
     private var storage: [ObjectIdentifier: Any] = [:]
-    init() {}
+    private let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    
     subscript<K: DependencyKey>(key: K.Type) -> K.Value {
-        get { storage[ObjectIdentifier(key)] as? K.Value ?? K.liveValue }
+        get {
+            #if DEBUG
+            if let mock = storage[ObjectIdentifier(key)] as? K.Value {
+                return mock
+            }
+            
+            if isPreview {
+                return K.previewValue
+            }
+            #endif
+            return K.liveValue
+        }
         set { storage[ObjectIdentifier(key)] = newValue }
     }
 }
