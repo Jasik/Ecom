@@ -22,22 +22,11 @@ struct LiveProductRepository: ProductRepository {
     }
 }
 
-#if DEBUG
-struct PreviewProductRepository: ProductRepository {
-    func getProducts() async throws -> [Product] {
-        [.mock, .mock, .mock]
-    }
-    
-    func searchProducts(query: String) async throws -> [Product] {
-        [.mock]
-    }
-}
-#endif
-
 private struct ProductRepoKey: DependencyKey {
     static let liveValue: any ProductRepository = LiveProductRepository()
+    
     #if DEBUG
-    static let previewValue: any ProductRepository = PreviewProductRepository()
+    static var previewValue: any ProductRepository { PreviewProductRepository() }
     #endif
 }
 
