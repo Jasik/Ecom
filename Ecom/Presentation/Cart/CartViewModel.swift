@@ -16,23 +16,11 @@ final class CartViewModel {
         return "$\(String(format: "%.2f", total))"
     }
     
-    private let observeItems: ObserveCartItemsUseCase
-    private let removeItem: RemoveFromCartUseCase
-    
-    init(observeItems: ObserveCartItemsUseCase, removeItem: RemoveFromCartUseCase) {
-        self.observeItems = observeItems
-        self.removeItem = removeItem
-    }
-    
-    convenience init () {
-        self.init(
-            observeItems: ObserveCartItemsUseCase(),
-            removeItem: RemoveFromCartUseCase()
-        )
-    }
+    @ObservationIgnored @Injected(\.observeCartItemsUseCase) private var observeCartItems
+    @ObservationIgnored @Injected(\.removeFromCartUseCase) private var removeFromCart
     
     func startObserving() async {
-        let stream = await observeItems.execute()
+        let stream = await observeCartItems.execute()
         for await updatedItems in stream {
             self.items = updatedItems
         }
@@ -40,7 +28,7 @@ final class CartViewModel {
     
     func remove(productID: Int) {
         Task {
-            await removeItem.execute(productID: productID)
+            await removeFromCart.execute(productID: productID)
         }
     }
 }

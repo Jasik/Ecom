@@ -14,28 +14,10 @@ final class CatalogViewModel {
     var searchQuery: String = ""
     var isLoading = false
     var cartCount = 0
-    
-    private let getProducts: GetProductsUseCase
-    private let searchProducts: SearchProductsUseCase
-    private let observeCartCount: ObserveCartCountUseCase
-    
-    init(
-        getProducts: GetProductsUseCase,
-        searchProducts: SearchProductsUseCase,
-        observeCartCount: ObserveCartCountUseCase
-    ) {
-        self.getProducts = getProducts
-        self.searchProducts = searchProducts
-        self.observeCartCount = observeCartCount
-    }
-    
-    convenience init() {
-        self.init(
-            getProducts: GetProductsUseCase(),
-            searchProducts: SearchProductsUseCase(),
-            observeCartCount: ObserveCartCountUseCase()
-        )
-    }
+
+    @ObservationIgnored @Injected(\.getProductsUseCase) private var getProducts
+    @ObservationIgnored @Injected(\.searchProductsUseCase) private var searchProducts
+    @ObservationIgnored @Injected(\.observeCartCountUseCase) private var observeCartCount
     
     func load() async {
         isLoading = true

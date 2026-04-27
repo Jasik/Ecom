@@ -56,3 +56,42 @@ struct Injected<T: Sendable>: Sendable {
     }
     var wrappedValue: T { resolvedValue }
 }
+
+private struct GetProductsKey: DependencyKey { static let liveValue = GetProductsUseCase() }
+private struct SearchProductsKey: DependencyKey { static let liveValue = SearchProductsUseCase() }
+private struct AddToCartKey: DependencyKey { static let liveValue = AddToCartUseCase() }
+private struct RemoveFromCartKey: DependencyKey { static let liveValue = RemoveFromCartUseCase() }
+private struct ObserveCartItemsKey: DependencyKey { static let liveValue = ObserveCartItemsUseCase() }
+private struct ObserveCartCountKey: DependencyKey { static let liveValue = ObserveCartCountUseCase() }
+
+extension DependencyValues {
+    var getProductsUseCase: GetProductsUseCase {
+        get { self[GetProductsKey.self] }
+        set { self[GetProductsKey.self] = newValue }
+    }
+    
+    var searchProductsUseCase: SearchProductsUseCase {
+        get { self[SearchProductsKey.self] }
+        set { self[SearchProductsKey.self] = newValue }
+    }
+    
+    var addToCartUseCase: AddToCartUseCase {
+        get { self[AddToCartKey.self] }
+        set { self[AddToCartKey.self] = newValue }
+    }
+    
+    var removeFromCartUseCase: RemoveFromCartUseCase {
+        get { self[RemoveFromCartKey.self] }
+        set { self[RemoveFromCartKey.self] = newValue }
+    }
+    
+    var observeCartItemsUseCase: ObserveCartItemsUseCase {
+        get { self[ObserveCartItemsKey.self] }
+        set { self[ObserveCartItemsKey.self] = newValue }
+    }
+    
+    var observeCartCountUseCase: ObserveCartCountUseCase {
+        get { self[ObserveCartCountKey.self] }
+        set { self[ObserveCartCountKey.self] = newValue }
+    }
+}

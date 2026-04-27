@@ -13,18 +13,10 @@ final class ProductDetailViewModel {
     let product: Product
     var isAddedToCart: Bool = false
     
-    private let addToCartUseCase: AddToCartUseCase
+    @ObservationIgnored @Injected(\.addToCartUseCase) private var addToCartUseCase
     
-    init(product: Product, addToCartUseCase: AddToCartUseCase) {
+    init(product: Product) {
         self.product = product
-        self.addToCartUseCase = addToCartUseCase
-    }
-    
-    convenience init(product: Product) {
-        self.init(
-            product: product,
-            addToCartUseCase: AddToCartUseCase()
-        )
     }
     
     func addToCart() {
