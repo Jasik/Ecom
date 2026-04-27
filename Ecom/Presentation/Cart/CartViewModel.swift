@@ -28,7 +28,11 @@ final class CartViewModel {
     
     func remove(productID: Int) {
         Task {
-            await removeFromCart.execute(productID: productID)
+            do {
+                await removeFromCart.execute(productID: productID)
+            } catch {
+                print(error.localizedDescription)
+            }
         }
     }
 }

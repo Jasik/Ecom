@@ -21,17 +21,28 @@ final class CatalogViewModel {
     
     func load() async {
         isLoading = true
-        defer { isLoading = false }
-        products = (try? await getProducts.execute()) ?? []
+        do {
+            products = try await getProducts.execute()
+        } catch {
+            print(error.localizedDescription)
+        }
+        
+        isLoading = false
     }
     
     func preformSearch() async {
         guard !searchQuery.isEmpty else {
-            return await load()
+            await load()
+            return
         }
         isLoading = true
-        defer { isLoading = false }
-        products = (try? await searchProducts.execute(query: searchQuery)) ?? []
+        do {
+            products = try await searchProducts.execute(query: searchQuery)
+        } catch {
+            print(error.localizedDescription)
+        }
+        
+        isLoading = false
     }
     
     func observeCart() async {
