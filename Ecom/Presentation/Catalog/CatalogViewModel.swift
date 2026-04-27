@@ -34,7 +34,7 @@ final class CatalogViewModel {
         products = (try? await searchProducts.execute(query: searchQuery)) ?? []
     }
     
-    public func observeCart() async {
+    func observeCart() async {
         for await count in await observeCartCount.execute() {
             self.cartCount = count
         }

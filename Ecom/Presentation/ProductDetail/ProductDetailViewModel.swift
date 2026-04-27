@@ -24,6 +24,7 @@ final class ProductDetailViewModel {
             await addToCartUseCase.execute(product)
             isAddedToCart = true
             try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
             isAddedToCart = false
         }
     }
