@@ -22,7 +22,10 @@ final class CatalogViewModel {
     func load() async {
         isLoading = true
         do {
-            products = try await getProducts.execute()
+            let products = try await getProducts.execute()
+//            products = try await getProducts.execute()
+            AppLogger.info("Fetched products \(products)", category: .ui)
+            self.products = products
         } catch {
             print(error.localizedDescription)
         }
