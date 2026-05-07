@@ -15,6 +15,7 @@ public struct LiveNetworkClient: NetworkClient {
     public init() {}
     
     public func fetch<T: Decodable>(url: String) async throws(NetworkError) -> T {
+        AppLogger.info("Начинаем загрузку по URL: \(url)", category: .network)
         guard let validURL = URL(string: url) else { throw .invalidURL }
         do {
             let (data, response) = try await URLSession.shared.data(from: validURL)
@@ -25,6 +26,7 @@ public struct LiveNetworkClient: NetworkClient {
         } catch is DecodingError {
             throw .decodingFailed
         } catch {
+            AppLogger.error(error, category: .network)
             throw .requestFailed
         }
     }

@@ -57,12 +57,12 @@ struct Injected<T: Sendable>: Sendable {
     var wrappedValue: T { resolvedValue }
 }
 
-private struct GetProductsKey: DependencyKey { static let liveValue = GetProductsUseCase() }
-private struct SearchProductsKey: DependencyKey { static let liveValue = SearchProductsUseCase() }
-private struct AddToCartKey: DependencyKey { static let liveValue = AddToCartUseCase() }
-private struct RemoveFromCartKey: DependencyKey { static let liveValue = RemoveFromCartUseCase() }
-private struct ObserveCartItemsKey: DependencyKey { static let liveValue = ObserveCartItemsUseCase() }
-private struct ObserveCartCountKey: DependencyKey { static let liveValue = ObserveCartCountUseCase() }
+private struct GetProductsKey: DependencyKey { static var liveValue: GetProductsUseCase { GetProductsUseCase() } }
+private struct SearchProductsKey: DependencyKey { static var liveValue: SearchProductsUseCase { SearchProductsUseCase() } }
+private struct AddToCartKey: DependencyKey { static var liveValue: AddToCartUseCase { AddToCartUseCase() } }
+private struct RemoveFromCartKey: DependencyKey { static var liveValue: RemoveFromCartUseCase { RemoveFromCartUseCase() } }
+private struct ObserveCartItemsKey: DependencyKey { static var liveValue: ObserveCartItemsUseCase { ObserveCartItemsUseCase() } }
+private struct ObserveCartCountKey: DependencyKey { static var liveValue: ObserveCartCountUseCase { ObserveCartCountUseCase() } }
 
 extension DependencyValues {
     var getProductsUseCase: GetProductsUseCase {
