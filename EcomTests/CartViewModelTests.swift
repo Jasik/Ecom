@@ -5,60 +5,52 @@
 //  Created by Vladimir Rogozhkin on 2026/04/26.
 //
 
-import XCTest
+import Testing
+import Foundation
 @testable import Ecom
 
 @MainActor
-final class CartViewModelTests: XCTestCase {
+@Suite struct CartViewModelTests {
     let mockProduct = Product(id: 1, title: "iPhone", description: "Phone", price: 999.0, images: [], thumbnail: "")
-    
-    func testRemoveItemFromCartUpdatesList() async throws {
+
+    @Test func removeItemFromCartUpdatesList() async throws {
         let mockRepo = MockCartRepository()
         await mockRepo.addToCart(product: mockProduct)
-        
-        var testDependencies = DependencyValues()
-        testDependencies.cartRepo = mockRepo
-        
-        await DependencyValues.$current.withValue(testDependencies) {
+
+        var deps = DependencyValues()
+        deps.cartRepo = mockRepo
+
+        try await DependencyValues.$current.withValue(deps) {
             let vm = CartViewModel()
-            let task = Task { await vm.startObserving() }
-            try? await Task.sleep(for: .milliseconds(10))
-            
-            XCTAssertEqual(vm.items.count, 1)
-            XCTAssertEqual(vm.totalPrice, "$999.00")
-            
+            let observe = Task { await vm.startObserving() }
+            defer { observe.cancel() }
+
+            try await waitUntil(timeout: .seconds(1)) { vm.items.count == 1 }
+            #expect(vm.totalPrice == 999.0.formatted(.currency(code: "USD")))
+
             vm.remove(productID: mockProduct.id)
-            
-            try? await Task.sleep(for: .milliseconds(10))
-            
-            XCTAssertEqual(vm.items.count, 0)
-            XCTAssertEqual(vm.totalPrice, "$0.00")
-            
-            task.cancel()
+            try await waitUntil(timeout: .seconds(1)) { vm.items.isEmpty }
+            #expect(vm.totalPrice == 0.0.formatted(.currency(code: "USD")))
         }
     }
-    
-    func testTotalPriceCalculation() async throws {
+
+    @Test func totalPriceCalculation() async throws {
         let mockRepo = MockCartRepository()
-        let product1 = Product(id: 1, title: "Item 1", description: "", price: 10.50, images: [], thumbnail: "")
-        let product2 = Product(id: 2, title: "Item 2", description: "", price: 20.00, images: [], thumbnail: "")
-        
-        await mockRepo.addToCart(product: product1)
-        await mockRepo.addToCart(product: product2)
-        
-        var testDependencies = DependencyValues()
-        testDependencies.cartRepo = mockRepo
-        
-        await DependencyValues.$current.withValue(testDependencies) {
+        let p1 = Product(id: 1, title: "Item 1", description: "", price: 10.50, images: [], thumbnail: "")
+        let p2 = Product(id: 2, title: "Item 2", description: "", price: 20.00, images: [], thumbnail: "")
+        await mockRepo.addToCart(product: p1)
+        await mockRepo.addToCart(product: p2)
+
+        var deps = DependencyValues()
+        deps.cartRepo = mockRepo
+
+        try await DependencyValues.$current.withValue(deps) {
             let vm = CartViewModel()
-            let task = Task { await vm.startObserving() }
-            
-            try? await Task.sleep(for: .milliseconds(10))
-            
-            XCTAssertEqual(vm.items.count, 2)
-            XCTAssertEqual(vm.totalPrice, "$30.50")
-            
-            task.cancel()
+            let observe = Task { await vm.startObserving() }
+            defer { observe.cancel() }
+
+            try await waitUntil(timeout: .seconds(1)) { vm.items.count == 2 }
+            #expect(vm.totalPrice == 30.5.formatted(.currency(code: "USD")))
         }
     }
 }

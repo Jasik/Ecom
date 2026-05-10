@@ -7,18 +7,18 @@
 
 import Foundation
 
-struct ProductResponse: Decodable, Sendable {
+nonisolated struct ProductResponse: Decodable, Sendable {
     let products: [ProductDTO]
 }
 
-struct ProductDTO: Decodable, Sendable {
+nonisolated struct ProductDTO: Decodable, Sendable {
     let id: Int
     let title: String
     let description: String
     let price: Double
     let images: [String]
     let thumbnail: String
-    
+
     func toDomain() -> Product {
         Product(
             id: id,

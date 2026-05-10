@@ -10,7 +10,7 @@ import Foundation
 #if DEBUG
 actor PreviewCartRepository: CartRepository {
     private let items: [Product] = [.mock, .mock]
-    
+
     func addToCart(product: Product) async {}
     func removeFromCart(productID: Int) async {}
     func observeCartCount() async -> AsyncStream<Int> {
@@ -30,14 +30,14 @@ actor PreviewCartRepository: CartRepository {
 actor MockEmptyCartRepository: CartRepository {
     func addToCart(product: Product) async {}
     func removeFromCart(productID: Int) async {}
-    
+
     func observeCartCount() async -> AsyncStream<Int> {
         AsyncStream {
             $0.yield(0)
             $0.finish()
         }
     }
-    
+
     func observeCartItems() async -> AsyncStream<[Product]> {
         AsyncStream {
             $0.yield([])

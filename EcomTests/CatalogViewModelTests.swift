@@ -5,63 +5,80 @@
 //  Created by Vladimir Rogozhkin on 2026/04/26.
 //
 
-import XCTest
+import Testing
+import Foundation
 @testable import Ecom
 
 @MainActor
-final class CatalogViewModelTests: XCTestCase {
+@Suite struct CatalogViewModelTests {
     let mockProducts = [
         Product(id: 1, title: "iPhone 15", description: "Phone", price: 999.0, images: [], thumbnail: ""),
         Product(id: 2, title: "MacBook Pro", description: "Laptop", price: 1999.0, images: [], thumbnail: "")
     ]
-    
-    func testLoadProductsSuccessfully() async throws {
+
+    @Test func loadProductsSuccessfully() async {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var dependencies = DependencyValues()
-        dependencies.productRepo = mockRepo
-        
-        await DependencyValues.$current.withValue(dependencies) {
+        var deps = DependencyValues()
+        deps.productRepo = mockRepo
+
+        await DependencyValues.$current.withValue(deps) {
             let vm = CatalogViewModel()
-            
-            XCTAssertTrue(vm.products.isEmpty)
-            XCTAssertFalse(vm.isLoading)
-            
+            #expect(vm.loadState.isLoading)
+
             await vm.load()
-            
-            XCTAssertEqual(vm.products.count, 2)
-            XCTAssertFalse(vm.isLoading)
-            XCTAssertEqual(vm.products.first?.title, "iPhone 15")
+
+            #expect(vm.loadState.value?.count == 2)
+            #expect(vm.loadState.value?.first?.title == "iPhone 15")
+            #expect(!vm.loadState.isLoading)
         }
     }
-    
-    func testSearchProductsReturnsFilteredList() async throws {
+
+    @Test func searchProductsReturnsFilteredList() async {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var dependencies = DependencyValues()
-        dependencies.productRepo = mockRepo
-        
-        await DependencyValues.$current.withValue(dependencies) {
+        var deps = DependencyValues()
+        deps.productRepo = mockRepo
+
+        await DependencyValues.$current.withValue(deps) {
             let vm = CatalogViewModel()
-            
             vm.searchQuery = "MacBook"
-            await vm.preformSearch()
-            
-            XCTAssertEqual(vm.products.count, 1)
-            XCTAssertEqual(vm.products.first?.title, "MacBook Pro")
+            await vm.performSearch()
+
+            #expect(vm.loadState.value?.count == 1)
+            #expect(vm.loadState.value?.first?.title == "MacBook Pro")
         }
     }
-    
-    func testEmptySearchQueryReloadsFullCatalog() async throws {
+
+    @Test func emptySearchQueryReloadsFullCatalog() async {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var dependencies = DependencyValues()
-        dependencies.productRepo = mockRepo
-        
-        await DependencyValues.$current.withValue(dependencies) {
+        var deps = DependencyValues()
+        deps.productRepo = mockRepo
+
+        await DependencyValues.$current.withValue(deps) {
             let vm = CatalogViewModel()
-            
             vm.searchQuery = ""
-            await vm.preformSearch()
-            
-            XCTAssertEqual(vm.products.count, 2)
+            await vm.performSearch()
+
+            #expect(vm.loadState.value?.count == 2)
+        }
+    }
+
+    @Test func loadFailurePreservesLastKnownValue() async {
+        let mockRepo = MockProductRepository(stubProducts: mockProducts)
+        var deps = DependencyValues()
+        deps.productRepo = mockRepo
+
+        await DependencyValues.$current.withValue(deps) {
+            let vm = CatalogViewModel()
+            await vm.load()
+            #expect(vm.loadState.value?.count == 2)
+
+            var deps2 = DependencyValues()
+            deps2.productRepo = MockProductRepository(stubProducts: [], shouldThrowError: true)
+            await DependencyValues.$current.withValue(deps2) {
+                await vm.load()
+            }
+            #expect(vm.loadState.error != nil)
+            #expect(vm.loadState.value?.count == 2, "lastKnown should survive a failed reload")
         }
     }
 }

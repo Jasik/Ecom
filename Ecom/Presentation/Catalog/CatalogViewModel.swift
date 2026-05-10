@@ -10,46 +10,44 @@ import Foundation
 @MainActor
 @Observable
 final class CatalogViewModel {
-    var products: [Product] = []
+    var loadState: LoadState<[Product], Error> = .loading
     var searchQuery: String = ""
-    var isLoading = false
-    var cartCount = 0
+    var cartCount: Int = 0
 
-    @ObservationIgnored @Injected(\.getProductsUseCase) private var getProducts
-    @ObservationIgnored @Injected(\.searchProductsUseCase) private var searchProducts
-    @ObservationIgnored @Injected(\.observeCartCountUseCase) private var observeCartCount
-    
+    @ObservationIgnored @Injected(\.productRepo) private var productRepo
+    @ObservationIgnored @Injected(\.cartRepo) private var cartRepo
+
     func load() async {
-        isLoading = true
+        let lastKnown = loadState.value
+        loadState = .loading
         do {
-            let products = try await getProducts.execute()
-//            products = try await getProducts.execute()
-            AppLogger.info("Fetched products \(products)", category: .ui)
-            self.products = products
+            let products = try await productRepo.getProducts()
+            AppLogger.info("Fetched \(products.count) products", category: .ui)
+            loadState = .fresh(products)
         } catch {
-            print(error.localizedDescription)
+            AppLogger.error(error, category: .ui)
+            loadState = .failed(error, lastKnown: lastKnown)
         }
-        
-        isLoading = false
     }
-    
-    func preformSearch() async {
+
+    func performSearch() async {
         guard !searchQuery.isEmpty else {
             await load()
             return
         }
-        isLoading = true
+        let lastKnown = loadState.value
+        loadState = .loading
         do {
-            products = try await searchProducts.execute(query: searchQuery)
+            let products = try await productRepo.searchProducts(query: searchQuery)
+            loadState = .fresh(products)
         } catch {
-            print(error.localizedDescription)
+            AppLogger.error(error, category: .ui)
+            loadState = .failed(error, lastKnown: lastKnown)
         }
-        
-        isLoading = false
     }
-    
+
     func observeCart() async {
-        for await count in await observeCartCount.execute() {
+        for await count in await cartRepo.observeCartCount() {
             self.cartCount = count
         }
     }

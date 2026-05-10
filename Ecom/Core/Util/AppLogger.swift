@@ -11,19 +11,21 @@ import os
 public enum AppLogger {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.ecom.app"
     
-    public enum Category: String {
-        case network = "🌐 Network"
-        case data    = "💾 Data"
-        case domain  = "🧠 Domain"
-        case ui      = "📱 UI"
+    public enum Category: String, CaseIterable {
+        case network   = "🌐 Network"
+        case data      = "💾 Data"
+        case domain    = "🧠 Domain"
+        case ui        = "📱 UI"
+        case streaming = "🎥 Streaming"
+        case iot       = "🔌 IoT"
+        case auth      = "🔐 Auth"
     }
-    
-    private static let loggers: [Category: Logger] = [
-        .network: Logger(subsystem: subsystem, category: Category.network.rawValue),
-        .data: Logger(subsystem: subsystem, category: Category.data.rawValue),
-        .domain: Logger(subsystem: subsystem, category: Category.domain.rawValue),
-        .ui: Logger(subsystem: subsystem, category: Category.ui.rawValue)
-    ]
+
+    private static let loggers: [Category: Logger] = Dictionary(
+        uniqueKeysWithValues: Category.allCases.map { category in
+            (category, Logger(subsystem: subsystem, category: category.rawValue))
+        }
+    )
     
     // MARK: - Публичные методы
     
