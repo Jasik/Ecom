@@ -16,13 +16,19 @@ public enum AppLogger {
         case data    = "💾 Data"
         case domain  = "🧠 Domain"
         case ui      = "📱 UI"
+        case streaming = "🎥 Streaming"
+        case iot     = "🔌 IoT"
+        case auth    = "🔐 Auth"
     }
     
     private static let loggers: [Category: Logger] = [
         .network: Logger(subsystem: subsystem, category: Category.network.rawValue),
         .data: Logger(subsystem: subsystem, category: Category.data.rawValue),
         .domain: Logger(subsystem: subsystem, category: Category.domain.rawValue),
-        .ui: Logger(subsystem: subsystem, category: Category.ui.rawValue)
+        .ui: Logger(subsystem: subsystem, category: Category.ui.rawValue),
+        .streaming: Logger(subsystem: subsystem, category: Category.streaming.rawValue),
+        .iot: Logger(subsystem: subsystem, category: Category.iot.rawValue),
+        .auth: Logger(subsystem: subsystem, category: Category.auth.rawValue)
     ]
     
     // MARK: - Публичные методы

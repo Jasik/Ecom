@@ -9,56 +9,30 @@ import Foundation
 
 actor LiveCartRepository: CartRepository {
     private var cartItems: [Product] = []
-    private var itemsObservers: [UUID: AsyncStream<[Product]>.Continuation] = [:]
-    private var countObservers: [UUID: AsyncStream<Int>.Continuation] = [:]
+    private let itemsBroadcaster = Broadcaster<[Product]>()
+    private let countBroadcaster = Broadcaster<Int>()
 
     func addToCart(product: Product) async {
         cartItems.append(product)
-        broadcast()
+        await broadcast()
     }
 
     func removeFromCart(productID: Int) async {
         cartItems.removeAll { $0.id == productID }
-        broadcast()
+        await broadcast()
     }
 
     func observeCartItems() async -> AsyncStream<[Product]> {
-        let id = UUID()
-        let (stream, continuation) = AsyncStream<[Product]>.makeStream(bufferingPolicy: .bufferingNewest(1))
-        itemsObservers[id] = continuation
-        continuation.yield(cartItems)
-        continuation.onTermination = { [weak self] _ in
-            Task { await self?.removeItemsObserver(id) }
-        }
-        return stream
+        await itemsBroadcaster.subscribe()
     }
 
     func observeCartCount() async -> AsyncStream<Int> {
-        let id = UUID()
-        let (stream, continuation) = AsyncStream<Int>.makeStream(bufferingPolicy: .bufferingNewest(1))
-        countObservers[id] = continuation
-        continuation.yield(cartItems.count)
-        continuation.onTermination = { [weak self] _ in
-            Task { await self?.removeCountObserver(id) }
-        }
-        return stream
+        await countBroadcaster.subscribe()
     }
 
-    private func broadcast() {
-        for continuation in itemsObservers.values {
-            continuation.yield(cartItems)
-        }
-        for continuation in countObservers.values {
-            continuation.yield(cartItems.count)
-        }
-    }
-
-    private func removeItemsObserver(_ id: UUID) {
-        itemsObservers[id] = nil
-    }
-
-    private func removeCountObserver(_ id: UUID) {
-        countObservers[id] = nil
+    private func broadcast() async {
+        await itemsBroadcaster.send(cartItems)
+        await countBroadcaster.send(cartItems.count)
     }
 }
 

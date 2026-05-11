@@ -14,18 +14,21 @@ final class ProductDetailViewModel {
     var isAddedToCart: Bool = false
     
     @ObservationIgnored @Injected(\.cartRepo) private var cartRepo
+    @ObservationIgnored private let taskBag = TaskBag()
     
     init(product: Product) {
         self.product = product
     }
     
     func addToCart() {
-        Task {
+        taskBag.cancelAll()
+        let task = Task {
             await cartRepo.addToCart(product: product)
             isAddedToCart = true
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             isAddedToCart = false
         }
+        taskBag.add(task)
     }
 }
