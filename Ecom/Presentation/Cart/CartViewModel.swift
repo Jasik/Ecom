@@ -28,12 +28,8 @@ final class CartViewModel {
     
     func remove(productID: Int) {
         Task {
-            do {
-                try await removeFromCart.execute(productID: productID)
-                AppLogger.info("Товар успешно удален с экрана", category: .ui)
-            } catch {
-                AppLogger.error(error, category: .ui)
-            }
+            await removeFromCart.execute(productID: productID)
+            AppLogger.info("Товар успешно удален с экрана", category: .ui)
         }
     }
 }

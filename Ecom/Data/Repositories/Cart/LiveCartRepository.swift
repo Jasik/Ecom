@@ -9,62 +9,67 @@ import Foundation
 
 actor LiveCartRepository: CartRepository {
     private var cartItems: [Product] = []
-    
-    private var itemsContinuation: AsyncStream<[Product]>.Continuation?
-    private var countContinuation: AsyncStream<Int>.Continuation?
-    
+    private var itemsObservers: [UUID: AsyncStream<[Product]>.Continuation] = [:]
+    private var countObservers: [UUID: AsyncStream<Int>.Continuation] = [:]
+
     func addToCart(product: Product) async {
         cartItems.append(product)
-        notify()
+        broadcast()
     }
-    
+
     func removeFromCart(productID: Int) async {
         cartItems.removeAll { $0.id == productID }
-        notify()
+        broadcast()
     }
-    
+
     func observeCartItems() async -> AsyncStream<[Product]> {
-        let (stream, continuation) = AsyncStream<[Product]>.makeStream()
-        self.itemsContinuation = continuation
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<[Product]>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        itemsObservers[id] = continuation
         continuation.yield(cartItems)
         continuation.onTermination = { [weak self] _ in
-            Task {
-                await self?.clearItemsContinuation()
-            }
+            Task { await self?.removeItemsObserver(id) }
         }
         return stream
     }
-    
+
     func observeCartCount() async -> AsyncStream<Int> {
-        let (stream, continuation) = AsyncStream<Int>.makeStream()
-        self.countContinuation = continuation
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<Int>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        countObservers[id] = continuation
         continuation.yield(cartItems.count)
-        
         continuation.onTermination = { [weak self] _ in
-            Task {
-                await self?.clearCountContinuation()
-            }
+            Task { await self?.removeCountObserver(id) }
         }
-        
         return stream
     }
-    
-    private func notify() {
-        itemsContinuation?.yield(cartItems)
-        countContinuation?.yield(cartItems.count)
+
+    private func broadcast() {
+        for continuation in itemsObservers.values {
+            continuation.yield(cartItems)
+        }
+        for continuation in countObservers.values {
+            continuation.yield(cartItems.count)
+        }
     }
-    
-    private func clearItemsContinuation() { self.itemsContinuation = nil }
-    private func clearCountContinuation() { self.countContinuation = nil }
+
+    private func removeItemsObserver(_ id: UUID) {
+        itemsObservers[id] = nil
+    }
+
+    private func removeCountObserver(_ id: UUID) {
+        countObservers[id] = nil
+    }
 }
 
 private struct CartRepoKey: DependencyKey {
     static let liveValue: any CartRepository = LiveCartRepository()
-    
+
     #if DEBUG
     static var previewValue: any CartRepository { PreviewCartRepository() }
     #endif
 }
+
 extension DependencyValues {
     var cartRepo: any CartRepository {
         get { self[CartRepoKey.self] }

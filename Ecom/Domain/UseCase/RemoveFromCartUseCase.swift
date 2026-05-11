@@ -10,8 +10,8 @@ import Foundation
 struct RemoveFromCartUseCase: Sendable {
     @Injected(\.cartRepo) private var repo
     
-    func execute(productID: Int) async throws {
+    func execute(productID: Int) async {
         AppLogger.info("Пытаемся удалить товар с ID: \(productID)", category: .domain)
-        try await repo.removeFromCart(productID: productID)
+        await repo.removeFromCart(productID: productID)
     }
 }

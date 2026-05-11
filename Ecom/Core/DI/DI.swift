@@ -49,12 +49,13 @@ struct DependencyValues: Sendable {
 
 @propertyWrapper
 struct Injected<T: Sendable>: Sendable {
-    private let resolvedValue: T
-    
+    private let keyPath: KeyPath<DependencyValues, T>
+
     init(_ keyPath: KeyPath<DependencyValues, T>) {
-        self.resolvedValue = DependencyValues.current[keyPath: keyPath]
+        self.keyPath = keyPath
     }
-    var wrappedValue: T { resolvedValue }
+
+    var wrappedValue: T { DependencyValues.current[keyPath: keyPath] }
 }
 
 private struct GetProductsKey: DependencyKey { static var liveValue: GetProductsUseCase { GetProductsUseCase() } }

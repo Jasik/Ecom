@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Product: Identifiable, Hashable, Sendable {
+nonisolated struct Product: Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
     let description: String
@@ -16,7 +16,7 @@ struct Product: Identifiable, Hashable, Sendable {
     let thumbnail: String
 }
 
-extension Product {
+nonisolated extension Product {
     var formattedPrice: String {
         return "$\(price)"
     }
