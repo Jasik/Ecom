@@ -13,7 +13,7 @@ final class ProductDetailViewModel {
     let product: Product
     var isAddedToCart: Bool = false
     
-    @ObservationIgnored @Injected(\.addToCartUseCase) private var addToCartUseCase
+    @ObservationIgnored @Injected(\.cartRepo) private var cartRepo
     
     init(product: Product) {
         self.product = product
@@ -21,7 +21,7 @@ final class ProductDetailViewModel {
     
     func addToCart() {
         Task {
-            await addToCartUseCase.execute(product)
+            await cartRepo.addToCart(product: product)
             isAddedToCart = true
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }

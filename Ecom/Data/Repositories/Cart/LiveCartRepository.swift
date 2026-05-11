@@ -62,17 +62,3 @@ actor LiveCartRepository: CartRepository {
     }
 }
 
-private struct CartRepoKey: DependencyKey {
-    static let liveValue: any CartRepository = LiveCartRepository()
-
-    #if DEBUG
-    static var previewValue: any CartRepository { PreviewCartRepository() }
-    #endif
-}
-
-extension DependencyValues {
-    var cartRepo: any CartRepository {
-        get { self[CartRepoKey.self] }
-        set { self[CartRepoKey.self] = newValue }
-    }
-}

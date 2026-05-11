@@ -27,7 +27,7 @@ struct CatalogView: View {
         .listStyle(.plain)
         .navigationTitle("Catalog")
         .searchable(text: $vm.searchQuery, prompt: "search")
-        .onSubmit(of: .search) { Task { await vm.preformSearch() } }
+        .onSubmit(of: .search) { Task { await vm.performSearch() } }
         .onChange(of: vm.searchQuery) { _, newValue in
             if newValue.isEmpty { Task { await vm.load() } }
         }
@@ -50,7 +50,13 @@ struct CatalogView: View {
                 }
             }
         }
-        .overlay { if vm.isLoading { ProgressView() } }
+        .overlay {
+            switch vm.loadState {
+            case .loading: ProgressView()
+            case .failed(let error): Text(error.localizedDescription).foregroundColor(.red)
+            default: EmptyView()
+            }
+        }
         .task {
             async let fetchProducts: () = vm.load()
             async let listenCart: () = vm.observeCart()

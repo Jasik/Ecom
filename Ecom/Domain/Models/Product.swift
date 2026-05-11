@@ -18,6 +18,6 @@ nonisolated struct Product: Identifiable, Hashable, Sendable {
 
 nonisolated extension Product {
     var formattedPrice: String {
-        return "$\(price)"
+        return price.formatted(.currency(code: "USD"))
     }
 }

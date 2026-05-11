@@ -12,44 +12,42 @@ import Foundation
 final class CatalogViewModel {
     var products: [Product] = []
     var searchQuery: String = ""
-    var isLoading = false
+    var loadState: LoadState<Void, Error> = .idle
     var cartCount = 0
 
-    @ObservationIgnored @Injected(\.getProductsUseCase) private var getProducts
-    @ObservationIgnored @Injected(\.searchProductsUseCase) private var searchProducts
-    @ObservationIgnored @Injected(\.observeCartCountUseCase) private var observeCartCount
+    @ObservationIgnored @Injected(\.productRepo) private var productRepo
+    @ObservationIgnored @Injected(\.cartRepo) private var cartRepo
     
     func load() async {
-        isLoading = true
+        loadState = .loading
         do {
-            let products = try await getProducts.execute()
-//            products = try await getProducts.execute()
+            let products = try await productRepo.getProducts()
             AppLogger.info("Fetched products \(products)", category: .ui)
             self.products = products
+            loadState = .loaded(())
         } catch {
-            print(error.localizedDescription)
+            AppLogger.error(error, category: .ui)
+            loadState = .failed(error)
         }
-        
-        isLoading = false
     }
     
-    func preformSearch() async {
+    func performSearch() async {
         guard !searchQuery.isEmpty else {
             await load()
             return
         }
-        isLoading = true
+        loadState = .loading
         do {
-            products = try await searchProducts.execute(query: searchQuery)
+            products = try await productRepo.searchProducts(query: searchQuery)
+            loadState = .loaded(())
         } catch {
-            print(error.localizedDescription)
+            AppLogger.error(error, category: .ui)
+            loadState = .failed(error)
         }
-        
-        isLoading = false
     }
     
     func observeCart() async {
-        for await count in await observeCartCount.execute() {
+        for await count in await cartRepo.observeCartCount() {
             self.cartCount = count
         }
     }

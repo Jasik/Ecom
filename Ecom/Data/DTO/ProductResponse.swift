@@ -7,11 +7,11 @@
 
 import Foundation
 
-struct ProductResponse: Decodable, Sendable {
+nonisolated struct ProductResponse: Decodable, Sendable {
     let products: [ProductDTO]
 }
 
-struct ProductDTO: Decodable, Sendable {
+nonisolated struct ProductDTO: Decodable, Sendable {
     let id: Int
     let title: String
     let description: String
@@ -19,7 +19,7 @@ struct ProductDTO: Decodable, Sendable {
     let images: [String]
     let thumbnail: String
     
-    func toDomain() -> Product {
+    nonisolated func toDomain() -> Product {
         Product(
             id: id,
             title: title,

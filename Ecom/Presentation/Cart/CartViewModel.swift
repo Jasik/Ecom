@@ -11,16 +11,16 @@ import Foundation
 @Observable
 final class CartViewModel {
     var items: [Product] = []
+    var loadState: LoadState<Void, Error> = .idle
     var totalPrice: String {
-        let total = items.reduce(0) { $1.price + $0 }
-        return "$\(String(format: "%.2f", total))"
+        let total = items.reduce(0.0) { $1.price + $0 }
+        return total.formatted(.currency(code: "USD"))
     }
     
-    @ObservationIgnored @Injected(\.observeCartItemsUseCase) private var observeCartItems
-    @ObservationIgnored @Injected(\.removeFromCartUseCase) private var removeFromCart
+    @ObservationIgnored @Injected(\.cartRepo) private var cartRepo
     
     func startObserving() async {
-        let stream = await observeCartItems.execute()
+        let stream = await cartRepo.observeCartItems()
         for await updatedItems in stream {
             self.items = updatedItems
         }
@@ -28,7 +28,7 @@ final class CartViewModel {
     
     func remove(productID: Int) {
         Task {
-            await removeFromCart.execute(productID: productID)
+            await cartRepo.removeFromCart(productID: productID)
             AppLogger.info("Товар успешно удален с экрана", category: .ui)
         }
     }
