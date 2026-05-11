@@ -5,80 +5,63 @@
 //  Created by Vladimir Rogozhkin on 2026/04/26.
 //
 
-import Testing
-import Foundation
+import XCTest
 @testable import Ecom
 
 @MainActor
-@Suite struct CatalogViewModelTests {
+final class CatalogViewModelTests: XCTestCase {
     let mockProducts = [
         Product(id: 1, title: "iPhone 15", description: "Phone", price: 999.0, images: [], thumbnail: ""),
         Product(id: 2, title: "MacBook Pro", description: "Laptop", price: 1999.0, images: [], thumbnail: "")
     ]
-
-    @Test func loadProductsSuccessfully() async {
+    
+    func testLoadProductsSuccessfully() async throws {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var deps = DependencyValues()
-        deps.productRepo = mockRepo
-
-        await DependencyValues.$current.withValue(deps) {
+        var dependencies = DependencyValues()
+        dependencies.productRepo = mockRepo
+        
+        await DependencyValues.$current.withValue(dependencies) {
             let vm = CatalogViewModel()
-            #expect(vm.loadState.isLoading)
-
+            
+            XCTAssertTrue(vm.products.isEmpty)
+            XCTAssertFalse(vm.isLoading)
+            
             await vm.load()
-
-            #expect(vm.loadState.value?.count == 2)
-            #expect(vm.loadState.value?.first?.title == "iPhone 15")
-            #expect(!vm.loadState.isLoading)
+            
+            XCTAssertEqual(vm.products.count, 2)
+            XCTAssertFalse(vm.isLoading)
+            XCTAssertEqual(vm.products.first?.title, "iPhone 15")
         }
     }
-
-    @Test func searchProductsReturnsFilteredList() async {
+    
+    func testSearchProductsReturnsFilteredList() async throws {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var deps = DependencyValues()
-        deps.productRepo = mockRepo
-
-        await DependencyValues.$current.withValue(deps) {
+        var dependencies = DependencyValues()
+        dependencies.productRepo = mockRepo
+        
+        await DependencyValues.$current.withValue(dependencies) {
             let vm = CatalogViewModel()
+            
             vm.searchQuery = "MacBook"
-            await vm.performSearch()
-
-            #expect(vm.loadState.value?.count == 1)
-            #expect(vm.loadState.value?.first?.title == "MacBook Pro")
+            await vm.preformSearch()
+            
+            XCTAssertEqual(vm.products.count, 1)
+            XCTAssertEqual(vm.products.first?.title, "MacBook Pro")
         }
     }
-
-    @Test func emptySearchQueryReloadsFullCatalog() async {
+    
+    func testEmptySearchQueryReloadsFullCatalog() async throws {
         let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var deps = DependencyValues()
-        deps.productRepo = mockRepo
-
-        await DependencyValues.$current.withValue(deps) {
+        var dependencies = DependencyValues()
+        dependencies.productRepo = mockRepo
+        
+        await DependencyValues.$current.withValue(dependencies) {
             let vm = CatalogViewModel()
+            
             vm.searchQuery = ""
-            await vm.performSearch()
-
-            #expect(vm.loadState.value?.count == 2)
-        }
-    }
-
-    @Test func loadFailurePreservesLastKnownValue() async {
-        let mockRepo = MockProductRepository(stubProducts: mockProducts)
-        var deps = DependencyValues()
-        deps.productRepo = mockRepo
-
-        await DependencyValues.$current.withValue(deps) {
-            let vm = CatalogViewModel()
-            await vm.load()
-            #expect(vm.loadState.value?.count == 2)
-
-            var deps2 = DependencyValues()
-            deps2.productRepo = MockProductRepository(stubProducts: [], shouldThrowError: true)
-            await DependencyValues.$current.withValue(deps2) {
-                await vm.load()
-            }
-            #expect(vm.loadState.error != nil)
-            #expect(vm.loadState.value?.count == 2, "lastKnown should survive a failed reload")
+            await vm.preformSearch()
+            
+            XCTAssertEqual(vm.products.count, 2)
         }
     }
 }

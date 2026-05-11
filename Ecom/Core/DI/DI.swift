@@ -10,7 +10,7 @@ import Foundation
 protocol DependencyKey: Sendable {
     associatedtype Value: Sendable
     static var liveValue: Value { get }
-
+    
     #if DEBUG
     static var previewValue: Value { get }
     #endif
@@ -24,18 +24,19 @@ extension DependencyKey {
 
 struct DependencyValues: Sendable {
     @TaskLocal static var current = DependencyValues()
-    private var storage: [ObjectIdentifier: any Sendable] = [:]
-
+    private var storage: [ObjectIdentifier: Any] = [:]
+    
     #if DEBUG
     private let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     #endif
-
+    
     subscript<K: DependencyKey>(key: K.Type) -> K.Value {
         get {
             #if DEBUG
             if let mock = storage[ObjectIdentifier(key)] as? K.Value {
                 return mock
             }
+            
             if isPreview {
                 return K.previewValue
             }
@@ -46,22 +47,51 @@ struct DependencyValues: Sendable {
     }
 }
 
-/// Property wrapper that resolves a dependency lazily on every access via the
-/// current `TaskLocal` `DependencyValues`. Storing the keyPath instead of the
-/// resolved value lets factory-constructed owners (e.g. struct repositories)
-/// honour test/preview overrides applied AFTER their initialisation.
-///
-/// Marked `@unchecked Sendable` because Swift 6 still types `\.dependency`
-/// literals as `WritableKeyPath` when the accessor has a setter, and
-/// `WritableKeyPath` is not auto-Sendable. Capturing it here is safe — the
-/// keyPath is immutable and only used as a lookup token.
 @propertyWrapper
-struct Injected<T: Sendable>: @unchecked Sendable {
-    private let keyPath: KeyPath<DependencyValues, T>
-
+struct Injected<T: Sendable>: Sendable {
+    private let resolvedValue: T
+    
     init(_ keyPath: KeyPath<DependencyValues, T>) {
-        self.keyPath = keyPath
+        self.resolvedValue = DependencyValues.current[keyPath: keyPath]
     }
+    var wrappedValue: T { resolvedValue }
+}
 
-    var wrappedValue: T { DependencyValues.current[keyPath: keyPath] }
+private struct GetProductsKey: DependencyKey { static var liveValue: GetProductsUseCase { GetProductsUseCase() } }
+private struct SearchProductsKey: DependencyKey { static var liveValue: SearchProductsUseCase { SearchProductsUseCase() } }
+private struct AddToCartKey: DependencyKey { static var liveValue: AddToCartUseCase { AddToCartUseCase() } }
+private struct RemoveFromCartKey: DependencyKey { static var liveValue: RemoveFromCartUseCase { RemoveFromCartUseCase() } }
+private struct ObserveCartItemsKey: DependencyKey { static var liveValue: ObserveCartItemsUseCase { ObserveCartItemsUseCase() } }
+private struct ObserveCartCountKey: DependencyKey { static var liveValue: ObserveCartCountUseCase { ObserveCartCountUseCase() } }
+
+extension DependencyValues {
+    var getProductsUseCase: GetProductsUseCase {
+        get { self[GetProductsKey.self] }
+        set { self[GetProductsKey.self] = newValue }
+    }
+    
+    var searchProductsUseCase: SearchProductsUseCase {
+        get { self[SearchProductsKey.self] }
+        set { self[SearchProductsKey.self] = newValue }
+    }
+    
+    var addToCartUseCase: AddToCartUseCase {
+        get { self[AddToCartKey.self] }
+        set { self[AddToCartKey.self] = newValue }
+    }
+    
+    var removeFromCartUseCase: RemoveFromCartUseCase {
+        get { self[RemoveFromCartKey.self] }
+        set { self[RemoveFromCartKey.self] = newValue }
+    }
+    
+    var observeCartItemsUseCase: ObserveCartItemsUseCase {
+        get { self[ObserveCartItemsKey.self] }
+        set { self[ObserveCartItemsKey.self] = newValue }
+    }
+    
+    var observeCartCountUseCase: ObserveCartCountUseCase {
+        get { self[ObserveCartCountKey.self] }
+        set { self[ObserveCartCountKey.self] = newValue }
+    }
 }

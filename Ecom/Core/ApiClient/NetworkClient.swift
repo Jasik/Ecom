@@ -32,3 +32,8 @@ public struct LiveNetworkClient: NetworkClient {
     }
 }
 
+private struct NetworkClientKey: DependencyKey { static let liveValue: any NetworkClient = LiveNetworkClient() }
+
+extension DependencyValues {
+    var apiClient: any NetworkClient { self[NetworkClientKey.self] }
+}

@@ -8,35 +8,28 @@
 import Foundation
 @testable import Ecom
 
-/// Test double backed by `Broadcaster`, so multi-observer guarantees are
-/// the same as production. Tests that need to await a yield should observe
-/// the stream directly rather than poll state.
 actor MockCartRepository: CartRepository {
-    private(set) var cartItems: [Product] = []
-    private let itemsBroadcaster = Broadcaster<[Product]>(initialValue: [])
-    private let countBroadcaster = Broadcaster<Int>(initialValue: 0)
-
+    var cartItems: [Product] = []
+    private var itemsContinuation: AsyncStream<[Product]>.Continuation?
+    
     func addToCart(product: Product) async {
         cartItems.append(product)
-        await notify()
+        itemsContinuation?.yield(cartItems)
     }
-
+    
     func removeFromCart(productID: Int) async {
         cartItems.removeAll { $0.id == productID }
-        await notify()
+        itemsContinuation?.yield(cartItems)
     }
-
+    
     func observeCartItems() async -> AsyncStream<[Product]> {
-        await itemsBroadcaster.subscribe()
+        let (stream, continuation) = AsyncStream<[Product]>.makeStream()
+        self.itemsContinuation = continuation
+        continuation.yield(cartItems)
+        return stream
     }
-
+    
     func observeCartCount() async -> AsyncStream<Int> {
-        await countBroadcaster.subscribe()
-    }
-
-    private func notify() async {
-        let snapshot = cartItems
-        await itemsBroadcaster.send(snapshot)
-        await countBroadcaster.send(snapshot.count)
+        AsyncStream { $0.finish() }
     }
 }

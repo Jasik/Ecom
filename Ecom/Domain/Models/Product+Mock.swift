@@ -8,7 +8,7 @@
 import Foundation
 
 #if DEBUG
-nonisolated extension Product {
+extension Product {
     static let mock = Product(
         id: 1,
         title: "Apple MacBook Pro 14",

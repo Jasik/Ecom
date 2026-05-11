@@ -11,31 +11,23 @@ import SwiftUI
 struct CatalogView: View {
     @Environment(ShopRouter.self) private var router
     @State private var vm: CatalogViewModel
-
+    
     init() {
         _vm = State(wrappedValue: CatalogViewModel())
     }
-
+    
     var body: some View {
-        Group {
-            switch vm.loadState {
-            case .loading:
-                ProgressView()
-            case .loaded(let products, _):
-                productList(products)
-            case .failed(_, .some(let cached)):
-                productList(cached)
-            case .failed(let error, .none):
-                ContentUnavailableView(
-                    "Не удалось загрузить",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error.localizedDescription)
-                )
-            }
+        List(vm.products) { product in
+            ProductRowView(product: product)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    router.push(.productDetail(product: product))
+                }
         }
+        .listStyle(.plain)
         .navigationTitle("Catalog")
         .searchable(text: $vm.searchQuery, prompt: "search")
-        .onSubmit(of: .search) { Task { await vm.performSearch() } }
+        .onSubmit(of: .search) { Task { await vm.preformSearch() } }
         .onChange(of: vm.searchQuery) { _, newValue in
             if newValue.isEmpty { Task { await vm.load() } }
         }
@@ -58,22 +50,12 @@ struct CatalogView: View {
                 }
             }
         }
+        .overlay { if vm.isLoading { ProgressView() } }
         .task {
             async let fetchProducts: () = vm.load()
             async let listenCart: () = vm.observeCart()
             _ = await (fetchProducts, listenCart)
         }
-    }
-
-    private func productList(_ products: [Product]) -> some View {
-        List(products) { product in
-            ProductRowView(product: product)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    router.push(.productDetail(product: product))
-                }
-        }
-        .listStyle(.plain)
     }
 }
 
@@ -99,7 +81,7 @@ struct ProductRowView: View {
             }
             .frame(width: 80, height: 80)
             .clipShape(RoundedRectangle(cornerRadius: 12))
-
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: product.title).font(.headline).lineLimit(2)
                 Text(verbatim: product.formattedPrice).font(.subheadline).bold().foregroundStyle(.blue)

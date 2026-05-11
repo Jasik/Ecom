@@ -7,7 +7,7 @@
 
 import Foundation
 
-nonisolated struct Product: Identifiable, Hashable, Sendable {
+struct Product: Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
     let description: String
@@ -16,10 +16,8 @@ nonisolated struct Product: Identifiable, Hashable, Sendable {
     let thumbnail: String
 }
 
-nonisolated extension Product {
-    /// Locale-aware currency formatting. Replace the currency code once the
-    /// real product API exposes it per-product (DummyJSON does not).
+extension Product {
     var formattedPrice: String {
-        price.formatted(.currency(code: "USD"))
+        return "$\(price)"
     }
 }
