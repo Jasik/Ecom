@@ -55,9 +55,12 @@ struct BroadcasterTests {
         // wait for onTermination
         try? await Task.sleep(for: .milliseconds(100))
         
+        // Consume 1 from s2 BEFORE sending 2, so it's not overwritten in the buffer
+        let val1 = await s2.next()
+        #expect(val1 == 1)
+        
         await broadcaster.send(2)
         
-        _ = await s2.next() // 1
         let val2 = await s2.next() // 2
         #expect(val2 == 2)
     }
