@@ -16,9 +16,14 @@ struct LiveProductRepository: ProductRepository {
     }
     
     nonisolated func searchProducts(query: String) async throws -> [Product] {
-        var components = URLComponents(string: "https://dummyjson.com/products/search")!
+        guard var components = URLComponents(string: "https://dummyjson.com/products/search") else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "q", value: query)]
-        let response: ProductResponse = try await api.fetch(url: components.url!.absoluteString)
+        guard let urlString = components.url?.absoluteString else {
+            throw URLError(.badURL)
+        }
+        let response: ProductResponse = try await api.fetch(url: urlString)
         return response.products.map { $0.toDomain() }
     }
 }

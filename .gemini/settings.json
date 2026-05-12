@@ -6,5 +6,11 @@
         "mcpbridge"
       ]
     }
+  },
+  "skills": {
+    "disabled": [
+      "code-reviewer",
+      "kmp-tech-lead"
+    ]
   }
 }
