@@ -1,0 +1,258 @@
+Архитектурный анализ трейта PushAvStreamTransportTrait и управления параметрами записи камер в Google Home APIs для iOS (SDK 1.11.x)
+Интеграция управления камерами видеонаблюдения и видеодомофонами через Google Home APIs для iOS в версиях SDK 1.11.0 и 1.11.1 с использованием модуля GoogleHomeTypes сопряжена с фундаментальными различиями между эталонной спецификацией протокола Matter (кластер Push AV Stream Transport с идентификатором 0x0555, описанный в реестре https://matter-survey.org/cluster/0x0555/version/master) и проприетарной облачной абстракцией Google (Google.PushAvStreamTransportTrait)1. Наблюдаемое расхождение в поведении между видеодомофонами Google Nest Doorbell, проводными камерами Google Nest Cam (indoor, wired), аккумуляторными камерами Nest Cam Outdoor (battery) и сторонними Matter-камерами, такими как Panasonic, не является следствием ошибки формирования структуры TransportOptionsStruct на стороне клиентского приложения. Оно обусловлено архитектурными ограничениями самого трейта в экосистеме Google Home и тем, как облачный мост Google транслирует возможности различных аппаратных платформ в модель данных Matter1.
+1. Поддержка модификации параметров движения и длительности клипов в экосистеме камер Google Home
+Подтверждённые факты
+Согласно официальной справочной документации модуля GoogleHomeTypes (https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Google и https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Matter), трейт Google.PushAvStreamTransportTrait, как и его отображение в пространстве имён Matter.PushAvStreamTransportTrait, официально спроектирован как минималистичная версия стандартного кластера Matter PushAvStreamTransport, которая предоставляет исключительно функциональность включения и выключения (On/Off-like functionality) для камер1. В документации прямо зафиксировано, что данный трейт является ограниченным и не предназначен для общего использования (restricted and not available for general use)1.
+В руководствах по разработке для устройств типа «Камера» (GoogleCameraDevice, идентификатор типа home.matter.6006.types.0158, https://developers.home.google.com/apis/android/device/camera и https://developers.home.google.com/apis/ios/device/camera?hl=ru) и «Дверной звонок» (https://developers.home.google.com/apis/android/device/doorbell?hl=ko) указано, что базовый профиль видеоустройства реализуется посредством трёх основных трейтов: PushAvStreamTransport, который обрабатывает передачу аудио- и видеопотоков по push-протоколам, WebRtcLiveView, обеспечивающего управление прямым эфиром и двусторонней аудиосвязью (talkback), и CameraSnapshot, предоставляющего кэшированные превью и захват актуальных статических снимков3. Документация Google Home APIs определяет строгую семантику использования PushAvStreamTransport для камер: включение или отключение возможности записи камеры эквивалентно включению или выключению видеопотока камеры через перевод статуса транспорта в состояние Active или Inactive3. Когда возможность записи отключена (видео камеры выключено), устройство продолжает отображаться как находящееся в сети (online) согласно агрегированному состоянию connectivityState типа устройства, однако прямой эфир становится недоступным, а камера прекращает детектировать облачные события и выгружать видеоклипы3.
+Официального публичного списка устройств на портале developers.home.google.com, гарантирующего поддержку модификации полей triggerOptions.motionSensitivity и triggerOptions.motionTimeControl.maxDuration через команду modifyPushTransport для конкретных моделей камер, не существует; вместо статического перечня документация предписывает динамически проверять поддержку атрибутов и команд на каждом экземпляре устройства перед использованием функции или обновлением атрибута5.
+
+Устройство / Платформа
+Поведение findTransport (streamUsage = .recording)
+Состав acceptedCommandList
+Поддержка modifyPushTransport (ID 3)
+Состояние подключения и специфика транспорта
+Google Nest Doorbell
+Возвращает валидные motionSensitivity и motionTimeControl (maxDuration 30–180 с)
+Включает команду 3 (ModifyPushTransport), а также 4 и 6
+Поддерживается (выполняется успешно)
+Профиль дверного звонка (doorbell) допускает тонкую настройку триггеров событий и таймингов сна/записи2
+Google Nest Cam (indoor, wired)
+Поля triggerType, ingestMethod, containerType = .unrecognized; motionSensitivity = nil, motionTimeControl = nil
+Только [4, 6] (SetTransportStatus, FindTransport)
+Не поддерживается (локальный отказ при strict=true или Code=13 notSupported)
+Минималистичный профиль Google.PushAvStreamTransportTrait (только переключение Active / Inactive)1
+Panasonic Indoor Camera (Matter)
+Поля перечисления = .unrecognized; структуры motionSensitivity и motionTimeControl = nil
+Только [4, 6] (SetTransportStatus, FindTransport)
+Не поддерживается (Code=13 notSupported)
+Ограничение на уровне шлюза/прошивки или облачного адаптера Google.PushAvStreamTransportTrait1
+Google Nest Cam Outdoor (battery)
+Запрос не доходит до узла или данные кэшированы неполностью
+Зависит от состояния пробуждения узла
+Недоступно в спящем режиме (Code=14 No route found)
+Агрегированный connectivityState конфликтует с глубоким энергосбережением радиомодуля3
+
+Техническая интерпретация и архитектурные предположения
+Наблюдаемое расхождение между Google Nest Doorbell и проводной камерой Google Nest Cam (indoor, wired) объясняется внутренней архитектурой различных аппаратных платформ Nest и тем, как серверный мост Google Home (Cloud-to-Matter bridge) адаптирует унаследованные протоколы к модели кластера Matter 0x05551. В инфраструктуре Nest проводные камеры функционируют в режиме непрерывного анализа видеопотока или постоянной предбуферизации, где границы событий определяются облачной или бортовой видеоаналитикой (AvStreamAnalysisTrait), а не жёстким аппаратным таймером отсечки питания после срабатывания пассивного инфракрасного (PIR) датчика1. Вследствие этого для проводных камер облачный адаптер Google реализует Google.PushAvStreamTransportTrait буквально в соответствии с его спецификацией в SDK — как бинарный переключатель записи (SetTransportStatus), принудительно исключая команду модификации параметров транспорта из списка поддерживаемых операций1. Видеодомофоны Google Nest Doorbell, напротив, критически зависят от аппаратного ограничения максимальной длительности записи (maxDuration в диапазоне от 30 до 180 секунд) и порога чувствительности пробуждения для предотвращения разряда встроенного аккумулятора или перегрева низковольтного трансформатора, поэтому для них бэкенд Google транслирует внутренние настройки триггеров в структуру TransportOptionsStruct.triggerOptions и разрешает вызов ModifyPushTransport.
+Тот факт, что сторонняя Matter-камера Panasonic indoor camera при работе через Google.PushAvStreamTransportTrait демонстрирует поведение, полностью идентичное проводной камере Nest Cam (acceptedCommandList = [4, 6] и поля со значением .unrecognized), свидетельствует о том, что взаимодействие в приложении осуществляется через проприетарную обёртку в пространстве имён Google (home.matter.6006.types.0158), которая урезает функциональность до минималистичного профиля включения и выключения вне зависимости от производителя оборудования, либо сама прошивка камеры делегирует управление записью облачному контроллеру без предоставления клиентским приложениям прав на переопределение параметров потока CMAF1.
+Возникновение ошибки маршрутизации GHPInteractionSession Code=14 (No route found) на аккумуляторной камере Google Nest Cam Outdoor (battery) при нестабильных значениях connectivityState (0, 7, 24) связано с механизмом агрегации статуса связи в Google Home APIs. Документация явно указывает, что connectivityState проверяется на уровне типа устройства и представляет собой комбинацию состояний связности всех его трейтов3. У батарейных камер основной процессор и Wi-Fi-трансивер находятся в состоянии глубокого энергосбережения (deep sleep), тогда как облачный шлюз продолжает удерживать кэшированное состояние отдельных трейтов. Поскольку выполнение FindTransport или ModifyPushTransport требует активного сеанса связи с экземпляром кластера на самом устройстве (или предварительного пробуждения радиомодуля камеры), отправка команды спящему узлу завершается транспортным отказом маршрутизации Code=14.
+2. Декодирование спецификации Matter 0x0555: команды acceptedCommandList и атрибуты attributeList
+Подтверждённые факты
+Кластер Push AV Stream Transport в спецификации Matter имеет идентификатор 0x0555 (в актуальной ветке спецификации https://matter-survey.org/cluster/0x0555/version/master зафиксирована ревизия ClusterRevision 3) и отвечает за выгрузку аудио- и видеопотоков с использованием push-транспортов2. Согласно архитектурному описанию Matter-камер (https://www.matteralpha.com/explainer/what-is-a-matter-camera-and-how-does-it-work), выгрузка записанных по событиям клипов через этот кластер опирается на протокол CMAF (Common Media Application Format) поверх защищённой схемы https, а также может направляться на локальный сетевой видеорегистратор (NVR) в локальной сети (https://iotdigitaltwinplm.com/matter-1-5-camera-webrtc-thread-1-4-2026/)8. При аллокации транспорта в эталонном стеке connectedhomeip (https://github.com/project-chip/connectedhomeip/issues/74527) команда AllocatePushTransport связывается с идентификатором TLSEndpointID, предварительно подготовленным через кластер TlsClientManagement10.
+Полная таблица команд и атрибутов кластера 0x0555, основанная на спецификации Matter2, позволяет точно декодировать массивы acceptedCommandList = [4, 6] и attributeList = [0, 1, 65528, 65529, 65532, 65533], возвращаемые проблемными камерами:
+
+Тип сущности Matter (0x0555)
+Код (Hex / Dec)
+Имя в спецификации Matter
+Направление / Тип данных
+Наличие в профиле проводных камер ([4, 6])
+Назначение в архитектуре протокола
+Command
+0x00 / 0
+AllocatePushTransport
+client → server
+Отсутствует
+Аллокация нового push-транспорта с привязкой к TLSEndpointID2
+Command
+0x01 / 1
+AllocatePushTransportResponse
+server → client
+Отсутствует (серверный ответ)
+Ответ сервера с параметрами созданного транспорта2
+Command
+0x02 / 2
+DeallocatePushTransport
+client → server
+Отсутствует
+Удаление существующего транспортного соединения2
+Command
+0x03 / 3
+ModifyPushTransport
+client → server
+Отсутствует
+Модификация опций транспорта (TransportOptionsStruct)2
+Command
+0x04 / 4
+SetTransportStatus
+client → server
+Присутствует (4)
+Включение и выключение транспорта записи (Active / Inactive)2
+Command
+0x05 / 5
+ManuallyTriggerTransport
+client → server
+Отсутствует
+Ручной запуск записи по транспорту2
+Command
+0x06 / 6
+FindTransport
+client → server
+Присутствует (6)
+Запрос конфигурации активных транспортов2
+Command
+0x07 / 7
+FindTransportResponse
+server → client
+В GeneratedCommandList
+Ответ сервера со структурой найденных транспортов2
+Command
+0x08 / 8
+UpdateMotionZoneOptions
+client → server
+Отсутствует
+Обновление параметров зон движения для транспорта2
+Attribute
+0x0000 / 0
+SupportedFormats
+array
+Присутствует (0)
+Перечень поддерживаемых форматов и контейнеров2
+Attribute
+0x0001 / 1
+CurrentConnections
+array
+Присутствует (1)
+Массив текущих транспортных подключений2
+Attribute
+0x0002 / 2
+MaxZones
+int8u
+Отсутствует
+Максимальное количество поддерживаемых зон2
+Global Attribute
+0xFFF8 / 65528
+GeneratedCommandList
+list
+Присутствует (65528)
+Список команд, генерируемых сервером кластера
+Global Attribute
+0xFFF9 / 65529
+AcceptedCommandList
+list
+Присутствует (65529)
+Список клиентских команд, поддерживаемых экземпляром кластера11
+Global Attribute
+0xFFFC / 65532
+FeatureMap
+bitmap32
+Присутствует (65532)
+Битовая маска поддерживаемых функций кластера
+Global Attribute
+0xFFFD / 65533
+ClusterRevision
+int16u
+Присутствует (65533)
+Номер ревизии спецификации кластера2
+
+Таким образом, идентификаторы 4 и 6 в атрибуте acceptedCommandList (65529) соответствуют исключительно командам SetTransportStatus (0x04) и FindTransport (0x06), тогда как команда ModifyPushTransport имеет идентификатор 3 (0x03) и в список поддерживаемых команд данных камер не входит2.
+Согласно документации по инициализации SDK (https://developers.home.google.com/apis/ios/initialize и https://developers.home.google.com/reference/kotlin/com/google/home/HomeConfig), параметр strictOperationValidation проверяет, поддерживается ли трейт или команда целевым устройством13. Если strictOperationValidation = true, клиентский SDK сверяет вызываемый метод с acceptedCommandList и немедленно выбрасывает локальное исключение ("modifyPushTransport command is not supported"), предотвращая сетевой вызов12. Если strictOperationValidation = false, SDK пропускает локальную проверку и пытается отправить команду или запись атрибута по сети, однако само устройство или облачный шлюз возвращает ошибку неподдерживаемой операции (GHPInteractionSession Code=13 "notSupported")13.
+
+Техническая интерпретация и архитектурные предположения
+Состав acceptedCommandList = [4, 6] и attributeList = [0, 1, 65528, 65529, 65532, 65533] полностью объясняет механику ограничений SDK на уровне протокола. На устройствах с набором команд [4, 6] клиенту разрешено только запрашивать параметры существующего транспорта (FindTransport, ID 6) и переключать его статус между Active и Inactive (SetTransportStatus, ID 4)2. Отсутствие в acceptedCommandList команд AllocatePushTransport (0x00), DeallocatePushTransport (0x02), ModifyPushTransport (0x03), ManuallyTriggerTransport (0x05) и UpdateMotionZoneOptions (0x08), равно как и отсутствие атрибута MaxZones (0x0002) в attributeList, доказывает, что жизненный цикл контейнера записи и его триггерных параметров жёстко зафиксирован на стороне облака Google и закрыт для модификации через этот трейт1. Следовательно, отключение strictOperationValidation (false) не может служить рабочим обходным путём: эта настройка лишь переносит точку отказа с клиентского валидатора iOS SDK на сервер обработчика кластера, который руководствуется тем же списком разрешённых команд и закономерно возвращает Code=13 ("notSupported")13.
+3. Альтернативные механизмы и трейты управления настройками записи, зон активности и энергопотребления
+Подтверждённые факты
+В модуле GoogleHomeTypes (https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Google) и руководствах по камерам (https://developers.home.google.com/apis/android/device/camera) управление видеопотоками, аналитикой, зонами детекции и энергопотреблением декомпозировано на специализированные трейты1. Трейт Google.CameraAvStreamManagementTrait представляет собой минималистичную кастомную версию стандартного кластера Matter CameraAvStreamManagement и предоставляет интерфейс для управления активными аудио- и видеопотоками, а также отдельными аппаратными настройками камеры, такими как изменение яркости светодиодного индикатора состояния через функцию setStatusLightBrightness1. Управление разрешением трансляции в реальном времени выделено в трейт WebRtcLiveView, который предоставляет атрибут supportedQualityHints (QUALITY_HINT_SD, QUALITY_HINT_HD, QUALITY_HINT_FHD, QUALITY_HINT_QHD, QUALITY_HINT_UHD) и команду changeLiveViewQuality с передачей mediaSessionId3.
+Для пространственной и семантической фильтрации событий предусмотрены трейты Google.ZoneManagementTrait и Google.AvStreamAnalysisTrait1. Как указано в документации (https://developers.home.google.com/apis/android/device/camera?hl=ja, https://developers.home.google.com/reference/kotlin/com/google/home/google/ZoneManagementTrait.ZoneTypeEnum и https://developers.home.google.com/reference/kotlin/com/google/home/google/ZoneManagementTrait.ZoneSourceEnum?hl=hi), ZoneManagementTrait позволяет управлять пользовательскими областями интереса (Activity Zones / зонами активности), которые рисуются пользователем в поле зрения камеры в виде двумерных декартовых зон (TwoDCARTZone в ZoneManagementTrait.ZoneTypeEnum) и классифицируются через ZoneSourceEnum для фильтрации детекции движения людей или транспорта в конкретных секторах кадра7. В то время как визуальные триггеры могут привязываться к конкретным зонам, звуковые триггеры (EventTriggerTypeEnum) конфигурируются на уровне всего устройства, а общая аналитика потоков и исторических событий обслуживается трейтами AvStreamAnalysisTrait, CameraHistoryTrait и CameraTimelineTrait1.
+Управление компромиссом между автономностью и полнотой записи событий у камер реализовано через Google.EnergyPreferenceTrait, основанный на стандартном кластере Matter Energy Preference (0x009B, спецификация https://matter-survey.org/cluster/0x009B/version/1.6 и https://www.matter-survey.org/cluster/0x009B/version/1.4)1. В руководстве по камерам прямо выделены операции установки предпочтений использования батареи (Set the battery usage preference) и включения автоматического режима энергосбережения (Turn on automatic battery saver)3. Кластер 0x009B определяет две функциональные возможности: 0: BALA (EnergyBalance), использующую массив доступных профилей EnergyBalances, текущий индекс CurrentEnergyBalance (0x0001, int8u) и массив EnergyPriorities (0x0002), а также 1: LPMS (LowPowerModeSensitivity), управляющую условиями перехода в режим низкого энергопотребления через атрибут CurrentLowPowerModeSensitivity (https://github.com/project-chip/connectedhomeip/blob/master/src/app/zap-templates/zcl/zcl.json)17. Дополнительно платформа поддерживает создание специфичных для производителя трейтов (Manufacturer-Specific / MS traits, https://developers.home.google.com/apis/ios/manufacturer-specific-traits), определяемых в формате .matter IDL и компилируемых генератором кода iOS SDK в импортируемые модули21.
+
+Техническая интерпретация и архитектурные предположения
+Когда камера не поддерживает изменение motionSensitivity и motionTimeControl.maxDuration через PushAvStreamTransportTrait, в публичных трейтах GoogleHomeTypes отсутствует прямое поле-заменитель для произвольного задания длительности клипа в секундах у проводных камер, однако архитектура Google Home предоставляет профильные механизмы в зависимости от класса устройства. Для камер с батарейным питанием длительность записываемого события и чувствительность пробуждения датчика движения неразрывно связаны с профилем расхода заряда аккумулятора. В Google Home APIs это управление делегировано трейту Google.EnergyPreferenceTrait (кластер 0x009B): изменение выбранного профиля в атрибуте currentEnergyBalance (из списка energyBalances) или корректировка currentLowPowerModeSensitivity выступает штатным высокоуровневым способом изменения агрессивности отсечки видеоклипов и порога срабатывания на автономных устройствах3.
+Для проводных камер, у которых motionSensitivity и motionTimeControl равны nil, снижение количества нерелевантных срабатываний достигается не изменением порога чувствительности в PushAvStreamTransportTrait, а пространственной фильтрацией кадра через ZoneManagementTrait (настройка полигонов TwoDCARTZone) и настройкой типов детектируемых объектов и звуков (EventTriggerTypeEnum) в AvStreamAnalysisTrait1. В свою очередь, CameraAvStreamManagementTrait в реализации Google отвечает за периферийные и аппаратные настройки захвата (такие как setStatusLightBrightness), но не управляет таймингами записи событий по движению1. Если же речь идёт о сторонней Matter-камере (например, Panasonic), у которой вендор реализовал собственные настройки чувствительности вне стандартного профиля Google, доступ к ним возможен только при наличии сгенерированного Manufacturer-Specific (MS) трейта производителя22.
+4. Природа значений unrecognized и transportOptions = nil в управляемых облачных транспортах
+Подтверждённые факты
+В эталонной спецификации Matter кластер Push AV Stream Transport (0x0555) хранит список текущих транспортных сессий в атрибуте 0x0001 CurrentConnections, а детальная выборка параметров выполняется клиентской командой 0x06 FindTransport с возвратом серверного ответа 0x07 FindTransportResponse2. Согласно требованиям безопасности Matter для камер (https://www.matteralpha.com/explainer/what-is-a-matter-camera-and-how-does-it-work), стандартные транспорты выгрузки клипов используют протокол CMAF Ingestion и обязаны применять схему https8. В то же время при опросе проводной камеры Google Nest Cam (indoor, wired) и камеры Panasonic через Google.PushAvStreamTransportTrait в атрибуте currentConnections поле transportOptions возвращается равным nil, а вызов findTransport со streamUsage = .recording возвращает структуру транспорта, в которой перечисления triggerType, ingestMethod и containerType имеют значение .unrecognized, а опциональные поля motionSensitivity и motionTimeControl равны nil.
+Техническая интерпретация и архитектурные предположения
+Описанная картина является штатным и ожидаемым поведением для управляемого Google облачного транспорта записи (Google-managed recording transport) в рамках минималистичного трейта Google.PushAvStreamTransportTrait1. Отсутствие transportOptions (nil) при чтении атрибута currentConnections объясняется тем, что атрибут 0x0001 CurrentConnections предназначен для легковесного мониторинга статуса соединений (например, проверки того, активна ли запись на устройстве), а детальные метаданные сессии выгрузки скрываются на уровне атрибута и запрашиваются только адресной командой FindTransport (0x06)2. Кроме того, для камер в экосистеме Google Home транспорт записи создаётся не клиентским приложением через команду AllocatePushTransport (0x00), а инициализируется внутренним облачным контроллером Google.
+Появление значений .unrecognized в полях triggerType, ingestMethod и containerType внутри ответа FindTransportResponse (0x07) обусловлено работой механизма десериализации Swift-типов в GoogleHomeTypes. Когда клиент вызывает findTransport для проводной камеры Nest Cam или устройства, обёрнутого в минималистичный Google.PushAvStreamTransportTrait, облачный мост Google формирует синтетическую структуру транспорта, отражающую внутренний канал постоянной видеозаписи Nest. Поскольку этот внутренний канал не является стандартным триггерным потоком Matter CMAF, серверный адаптер заполняет обязательные поля структуры служебными нулевыми значениями или внутренними проприетарными кодами вне стандартного диапазона перечислений Matter1. Декодер iOS SDK, получая числовые коды, не сопоставленные со стандартными кейсами (motion, cmafIngest, cmaf), безопасно транслирует их в fallback-значение перечисления .unrecognized. Именно поэтому попытка клиента перезаписать такой транспорт через modifyPushTransport, передавая стандартные константы triggerType = .motion, ingestMethod = .cmafIngest и containerType = .cmaf, отвергается сервером: сам объект транспорта представляет собой лишь виртуальную проекцию облачного рубильника записи (On/Off), не допускающую реконфигурации контейнера или триггеров1.
+5. Динамика изменений в iOS SDK 1.11.0 / 1.11.1 и нестабильность атрибута currentEnergyBalance
+Подтверждённые факты
+Механизм strictOperationValidation в Google Home APIs опирается на списки поддерживаемых атрибутов (attributeList) и принимаемых команд (acceptedCommandList), которые определены на каждом экземпляре кластера (https://developers.home.google.com/reference/kotlin/com/google/home/matter/standard/ActionsTrait.Attributes, https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Matter/ColorControlTrait/Attributes)12. В трейте Google.EnergyPreferenceTrait, основанном на кластере Matter 0x009B (Energy Preference, ClusterRevision 1 в версиях спецификации Matter 1.3–1.6, https://matter-survey.org/cluster/0x009B/version/1.6), состав атрибутов зависит от активных флагов функций17:
+
+Элемент кластера 0x009B (Energy Preference)
+Идентификатор / Код
+Тип данных
+Связанный флаг FeatureMap
+Описание в спецификации Matter и Google Home APIs
+Feature BALA
+Bit 0
+Feature Flag
+BALA (EnergyBalance)
+Устройство способно балансировать энергопотребление относительно другого приоритета17
+Feature LPMS
+Bit 1
+Feature Flag
+LPMS (LowPowerModeSensitivity)
+Устройство позволяет настраивать условия перехода в режим низкого энергопотребления17
+Attribute EnergyBalances
+0x0000 / 0
+array
+0: BALA
+Перечень доступных профилей баланса энергии и комфорта/производительности17
+Attribute CurrentEnergyBalance
+0x0001 / 1
+int8u
+0: BALA
+Индекс текущего активного профиля энергопотребления17
+Attribute EnergyPriorities
+0x0002 / 2
+array
+0: BALA
+Массив приоритетов, сопоставленных с профилями баланса энергии17
+Attribute CurrentLowPowerModeSensitivity
+0x0004 / 4
+int8u
+1: LPMS
+Текущий уровень чувствительности перехода в энергосберегающий режим17
+
+Техническая интерпретация и архитектурные предположения
+Анализ поведения Google Home SDK для iOS в версиях 1.11.0 и 1.11.1 в октябре–ноябре 2026 года показывает, что блокировка modifyPushTransport при strictOperationValidation = true и периодическое исчезновение атрибута currentEnergyBalance из attributeList обусловлены синхронизацией метаданных между облачным графом Google Home и клиентским SDK13. Локальное отклонение команды modifyPushTransport при strictOperationValidation = true является штатной работой клиентского валидатора, проверяющего массив acceptedCommandList (65529)12. Ужесточение поведения в октябре–ноябре 2026 года связано с тем, что облачный мост Google привёл публикуемые списки acceptedCommandList для проводных камер в строгое соответствие с минималистичным контрактом Google.PushAvStreamTransportTrait ([4, 6]), убрав из объявления неподдерживаемую команду 3 (ModifyPushTransport), которая при strictOperationValidation = false всё равно отвергается сервером с кодом Code=13 ("notSupported")1.
+Периодическое пропадание идентификатора атрибута currentEnergyBalance (0x0001) из массива attributeList у трейта EnergyPreferenceTrait объясняется динамической природой формирования облачной проекции трейтов питания для камер в Google Home APIs3. В отличие от статических локальных узлов Matter, облачный адаптер камеры непрерывно агрегирует телеметрию питания: состояние зарядки (Get the battery charging state), активный источник питания (Get the power source) и статус автоматического энергосбережения (automatic battery saver)3. Когда камера с аккумулятором переходит на питание от сети, находится в фазе активной зарядки или принудительного ограничения мощности, серверный адаптер Google может динамически пересчитывать доступность функции BALA и временно исключать currentEnergyBalance из актуального среза attributeList, блокируя изменение профиля батареи в нерелевантном энергетическом состоянии3. Дополнительно у спящих батарейных камер при инициализации подписки SDK возможна частичная десинхронизация теневого состояния (shadow state), когда до полного опроса подсистемы питания в attributeList присутствуют только глобальные атрибуты кластера (65528–65533). Попытка чтения или записи currentEnergyBalance в момент его отсутствия в attributeList при активном strictOperationValidation = true закономерно вызывает ошибку валидации на стороне SDK13.
+6. Архитектурные рекомендации по проектированию UX и валидации возможностей устройств
+Подтверждённые факты
+Официальная документация Google Home APIs (https://developers.home.google.com/apis/android/device/doorbell?hl=ko) формулирует обязательное правило проектирования клиентских приложений: перед использованием любой функции или обновлением любого атрибута необходимо всегда проверять поддержку атрибутов и команд конкретным устройством5. При наличии неподдерживаемых сущностей в сценариях автоматизации или управления система оперирует специализированными типами ошибок валидации, такими как UnsupportedEntityTrait : ValidationIssue (https://developers.home.google.com/reference/kotlin/com/google/home/automation/UnsupportedEntityTrait)24. Поведение эталонного Android-приложения на базе Home APIs, скрывающего настройки чувствительности движения и длительности клипа при равенстве motionSensitivity и motionTimeControl значению null, полностью соответствует этому требованию5.
+Техническая интерпретация и практический алгоритм для iOS-клиента
+Для обеспечения полной отказоустойчивости iOS-приложения на базе SDK 1.11.0 / 1.11.1 при сохранении рекомендованного режима strictOperationValidation = true (https://developers.home.google.com/apis/ios/initialize) пользовательский интерфейс настроек камеры должен строиться по принципу многоуровневой прогрессивной проверки возможностей (Capability Discovery)5:
+
+Уровень валидации в iOS-приложении
+Проверяемое условие в GoogleHomeTypes
+Рекомендуемое поведение UI / UX
+Предотвращаемый сбой в рантайме
+1. Проверка списка разрешённых команд (acceptedCommandList)
+Проверка условия pushTrait.attributes.acceptedCommandList.contains(3) (наличие ModifyPushTransport)2
+Если команда 3 отсутствует (например, возвращён массив [4, 6]), полностью скрывать элементы управления длительностью клипа и чувствительностью; отображать только переключатель записи On/Off (команда 4 SetTransportStatus)1
+Исключает локальный краш/исключение при strictOperationValidation = true и сетевую ошибку Code=13 notSupported при false13
+2. Инспекция полезных данных транспорта (findTransport)
+Вызов findTransport(streamUsage: .recording) и проверка triggerType != .unrecognized, а также ненулевых значений motionSensitivity != nil и motionTimeControl != nil
+Рендерить ползунок чувствительности только при motionSensitivity != nil, а выбор maxDuration — только при motionTimeControl != nil (как это реализовано на Android и работает на Nest Doorbell)
+Предотвращает отправку синтетических констант (cmafIngest, cmaf, motion) в управляемый облаком транспорт с полями .unrecognized
+3. Динамический контроль EnergyPreferenceTrait и связности
+Проверка deviceType.connectivityState == .online и наличия ID 1 (0x0001, currentEnergyBalance) в energyTrait.attributes.attributeList перед чтением/записью3
+Для батарейных камер предлагать выбор профиля энергопотребления (currentEnergyBalance) вместо секундного таймера maxDuration; если атрибут временно пропал из attributeList или камера спит, переводить контрол в состояние disabled с индикацией режима питания3
+Защищает от ошибки Code=14 (No route found) на спящих батарейных камерах и исключений при динамическом обновлении attributeList
+
+Реализация данной архитектуры гарантирует консистентность поведения между iOS и Android-клиентами, избавляет приложение от необходимости отключать strictOperationValidation и адаптирует экран настроек под реальные возможности каждого конкретного устройства — от полнофункционального в части триггеров Google Nest Doorbell до минималистичного профиля проводных камер Nest Cam и сторонних Matter-камер1.
+Источники
+Home APIs - iOS - Google Home Developers, https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Google
+Matter master - Push AV Stream Transport 0x0555, https://matter-survey.org/cluster/0x0555/version/master
+Camera device guide for Android | Home APIs, https://developers.home.google.com/apis/android/device/camera
+Matter | Home APIs - iOS | Google Home Developers, https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Matter
+Android용 초인종 기기 가이드 | Home APIs, https://developers.home.google.com/apis/android/device/doorbell?hl=ko
+Руководство по использованию камеры на устройстве iOS, https://developers.home.google.com/apis/ios/device/camera?hl=ru
+Android 向けカメラ デバイス ガイド | Home APIs, https://developers.home.google.com/apis/android/device/camera?hl=ja
+What is a Matter camera, and how does it work? - Matter Alpha, https://www.matteralpha.com/explainer/what-is-a-matter-camera-and-how-does-it-work
+Matter 1.5 Cameras & WebRTC: 2026 Technical Guide, https://iotdigitaltwinplm.com/matter-1-5-camera-webrtc-thread-1-4-2026/
+AllocatePushTransport aborts when the TLS endpoint's CCDID, https://github.com/project-chip/connectedhomeip/issues/74527
+ApplicationLauncher | Home APIs - Android, https://developers.home.google.com/reference/kotlin/com/google/home/matter/standard/ApplicationLauncher
+Attributes | Home APIs - iOS - Google Home Developers, https://developers.home.google.com/reference/swift/GoogleHomeTypes/Enums/Matter/ColorControlTrait/Attributes
+Initialize the home | Home APIs - iOS | Google Home Developers, https://developers.home.google.com/apis/ios/initialize
+HomeConfig | Home APIs - Android - Google Home Developers, https://developers.home.google.com/reference/kotlin/com/google/home/HomeConfig
+ZoneManagementTrait.ZoneSourceEnum | Home APIs - Android, https://developers.home.google.com/reference/kotlin/com/google/home/google/ZoneManagementTrait.ZoneSourceEnum?hl=hi
+ZoneManagementTrait.ZoneTypeEnum | Home APIs - Android, https://developers.home.google.com/reference/kotlin/com/google/home/google/ZoneManagementTrait.ZoneTypeEnum
+Energy Preference (Matter 1.6) - Matter Survey, https://matter-survey.org/cluster/0x009B/version/1.6
+Energy Preference (Matter 1.4) - Matter Survey, https://www.matter-survey.org/cluster/0x009B/version/1.4
+MatterEx.Cluster.EnergyPreference — matter_ex v0.5.1, https://matter-ex.hexdocs.pm/MatterEx.Cluster.EnergyPreference.html
+connectedhomeip/src/app/zap-templates/zcl/zcl.json at master, https://github.com/project-chip/connectedhomeip/blob/master/src/app/zap-templates/zcl/zcl.json
+Manufacturer-specific traits on Android | Home APIs, https://developers.home.google.com/apis/android/manufacturer-specific-traits
+Manufacturer-specific traits on iOS | Home APIs, https://developers.home.google.com/apis/ios/manufacturer-specific-traits
+ActionsTrait.Attributes | Home APIs - Android, https://developers.home.google.com/reference/kotlin/com/google/home/matter/standard/ActionsTrait.Attributes
+UnsupportedEntityTrait | Home APIs - Android, https://developers.home.google.com/reference/kotlin/com/google/home/automation/UnsupportedEntityTrait
